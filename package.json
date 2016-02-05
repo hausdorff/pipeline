@@ -1,0 +1,20 @@
+{
+  "name": "Forward",
+  "version": "0.1.0",
+  "description": "Brainstorming on a one-way pipeline",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p .",
+    "typings": "typings install"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tsc": "^1.20150623.0",
+    "tsd": "^0.6.5"
+  },
+  "dependencies": {
+    "restify": "^4.0.3"
+  }
+}
