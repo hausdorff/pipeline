@@ -5,7 +5,7 @@ var serverPort = 8080;
 var pipelinePort = 8082;
 var planStoreServerPort = 8083;
 
-var myPipelineUrl = "http://localhost:" + pipelinePort;
+var thisStage = "http://localhost:" + pipelinePort;
 var planStoreUrl = "http://localhost:" + planStoreServerPort;
 var countStoreUrl = "http://localhost:8084";
 var executeUrl = "http://localhost:8085";
@@ -13,9 +13,9 @@ var executeUrl = "http://localhost:8085";
 var server = restify.createServer();
 var pipeline = restify.createServer();
 
-var planStoreStage = restify.createJsonClient({ url: planStoreUrl });
-var countStoreStage = restify.createJsonClient({ url: countStoreUrl });
-var executeStage = restify.createJsonClient({ url: executeUrl });
+var planStoreStage = restify.createStringClient({ url: planStoreUrl });
+var countStoreStage = restify.createStringClient({ url: countStoreUrl });
+var executeStage = restify.createStringClient({ url: executeUrl });
 
 interface session {
     request: restify.Request;
@@ -31,7 +31,7 @@ function operation(request: restify.Request, response: restify.Response, next: r
     console.log('Got message from client with operation ' + request.params.operation + ' and paramaters \r\n' + JSON.stringify(request.params));
     var operation = request.params.operation;
     sessions[session.toString()] = { request: request, response: response, next: next, started: new Date(Date.now()) };
-    planStoreStage.post('/lookup', { operation: operation, session: session, resultStageUrl: myPipelineUrl }, (err, req, res, obj) => {
+    planStoreStage.post('/lookup/' + operation, { operation: operation, session: session, initialStageAddress: thisStage }, (err, req, res, obj) => {
         if (res.statusCode == 201) {
             // do nothing... the response will be sent back via the pipeline.  
         } else {
@@ -86,11 +86,11 @@ interface Stage {
 function ProcessNextStage(stages: Stage[], params: Object) {
     if (stages.length == 0) return;
     var current = stages.shift();
-    var currentClient = restify.createJsonClient({ url: current.url });
+    var currentClient = restify.createStringClient({ url: current.url });
 
     Object.keys(current.params).forEach((key) => params[key] = current.params[key]);
     params["stages"] = stages;
-
+    console.log ('Sending to ' + current.url + current.path + ' ' + JSON.stringify(params));
     currentClient.post(current.path, params, (error, request, response, result) => {
         if (response.statusCode != 201) {
             console.log('Error sending to ' + current.url + current.path);
@@ -104,13 +104,13 @@ planStoreServer.post('/lookup/:operation', (request, response, next) => {
     var operation = request.params.operation;
     console.log("Lookup plan for " + operation);
     request.on('data', (chunk) => {
-        var params = null;
+        var params = Object.keys(request.params).reduce((previous,key) => { previous[key] = request.params[key]; return previous; },{});
         try {
             params = chunk.toString().split('&')
                 .map((kv) => kv.split('='))
                 .reduce((r, kvp) => { r[kvp[0]] = !kvp[1] ? true : kvp[1]; return r; }, {});
         } catch (err) { console.log('Error parsing request.'); }
-
+        console.log('plan parameters '+ JSON.stringify(params));
         if (operation ==  'currentCount') {
             var stages: Stage[] = [
                 { url: countStoreUrl, path: '/currentCount', params: { resultName: "count" } },
@@ -119,9 +119,11 @@ planStoreServer.post('/lookup/:operation', (request, response, next) => {
             ];
             ProcessNextStage(stages, request.params);
         } else if (operation == 'hello') {
+            var initialStage = params["initialStageAddress"];
+            if (!initialStage) { throw "No initial stage address"; }
             ProcessNextStage([
-                { url: request.params.resultStageUrl, path: '/pipeline/result', params: { result: 'Hello World' } }
-            ], request.params);
+                { url: initialStage, path: '/pipeline/result', params: { result: "Hello World!"  } }
+            ], params);
         }
         response.send(201);
         next();
