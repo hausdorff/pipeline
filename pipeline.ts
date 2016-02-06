@@ -27,11 +27,11 @@ export class SessionManager {
 
 
 export interface StageParameters {
-    [key:string] : Object;
-    session : string;
-    initialStageAddress? : string;
+    [key: string]: Object;
+    session: string;
+    initialStageAddress?: string;
     stages?: Stage[];
-    trace? : string[];    
+    trace?: string[];
 }
 
 export class Stage {
@@ -55,18 +55,21 @@ export class Stage {
 
     }
 
-    public static HandlePipelineRequest(request: restify.Request, response: restify.Response, next: restify.Next, callback: (parameters: StageParameters ) => void) {
-        response.send(201);
-        next();
+    public static HandlePipelineRequest(request: restify.Request, response: restify.Response, next: restify.Next, callback: (parameters: StageParameters) => void) {
 
         var operation = request.params.operation;
         console.log("Handling Pipeline request for " + operation);
 
         request.on('data', (chunk) => {
-            var params = <StageParameters> MergeJsonData(request.params, chunk.toString());
-            console.log(JSON.stringify(params));            
+            var params = <StageParameters>MergeObjects(MergeJsonData({}, chunk.toString()),request.params);            
+            console.log('Pipeline request paramaters ' + JSON.stringify(params));
             if (!params["session"] && !params["initialStageAddres"]) { console.log("Pipeline stage called without sessionId or initialStageAddress"); }
             callback(params);
+        });
+
+        request.on('end', () => {
+            response.send(201);
+            next();
         });
     }
 }
@@ -83,7 +86,7 @@ export function MergeJsonData(start: Object, json: string): Object {
 export function MergeObjects(start: Object, next: Object, ...more: Object[]): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
     Object.keys(next).forEach((key) => { result[key] = next[key]; });
-    if (more) { return (result, more.shift(), more) }
+    if (more.length > 0) { return (result, more.shift(), more) }
     return result;
 }
 
@@ -92,9 +95,9 @@ export function NameValues(data: string): Object {
     try {
         result = data.split('&')
             .map((kv) => kv.split('='))
-            .reduce((r, kvp) => { 
-                if (kvp[0]) r[kvp[0]] = !kvp[1] ? true : kvp[1]; 
-                return r; 
+            .reduce((r, kvp) => {
+                if (kvp[0]) r[kvp[0]] = !kvp[1] ? true : kvp[1];
+                return r;
             }, {});
     } catch (err) { console.log('Error parsing name/value string.'); }
     return result;

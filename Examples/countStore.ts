@@ -7,17 +7,19 @@ import pipeline = require('../pipeline');
 
 export var server = restify.createServer();
 
-server.post('/lookup/:operation', (request, response, next) => {
+var count = 0;
+
+server.post('/api/:operation', (request, response, next) => {
     
-    console.log('Plan store pipeline operation started.');
+    console.log('Count store pipeline operation started.');
     pipeline.Stage.HandlePipelineRequest(request, response, next, (params) => {
 
         var operation = params["operation"];
 
-        if (operation == 'counter') {
+        if (operation == 'currentCount') {
             pipeline.Stage.Process(params,
                 [
-                    { url: pipelineConfig.countStore.address, path: '/api/incrementCount', params: { resultName: "count" } },
+                    { url: pipelineConfig.countStore.address, path: '/currentCount', params: { resultName: "count" } },
                     { url: pipelineConfig.processJavascript.address, path: '/execute', params: { code: "return 'Current count is ' + count;", resultName: "result" } },
                     { url: params.initialStageAddress, path: '/pipeline/result', params: {} }
                 ]);

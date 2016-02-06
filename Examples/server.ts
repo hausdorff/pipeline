@@ -2,13 +2,13 @@ import http = require('http');
 import restify = require('restify');
 import pipelineConfig = require('./pipelineConfig');
 import pipeline = require('../pipeline');
-import planstore = require('./planStore');
+import planStore = require('./planStore');
 
 // The public server
 var server = restify.createServer();
 
 function operation(request: restify.Request, response: restify.Response, next: restify.Next) {
-    console.log('Got message from client with operation ' + request.params.operation + ' and paramaters \r\n' + JSON.stringify(request.params));
+    console.log('Got message from client with paramaters ' + JSON.stringify(request.params));
     var operation = request.params.operation;
     var session = sessions.add(new pipeline.Session(request, response, next));
     pipelineConfig.planStore.client.post('/lookup/' + operation,
@@ -36,6 +36,7 @@ pipelineServer.post('/pipeline/:operation', (request, response, next) => {
     pipeline.Stage.HandlePipelineRequest(request, response, next, (params) => {
         var session = sessions.find(params["session"]);
         if (params["operation"] == 'result') {
+            console.log('Send to client with body ' + params["result"]);                
             session.response.send(201, params["result"]);
             session.next();            
         } 
@@ -47,4 +48,8 @@ pipelineServer.post('/pipeline/:operation', (request, response, next) => {
 });
 
 server.listen(pipelineConfig.initialPublic.port);
+console.log("Listening on " + pipelineConfig.initialPublic.port);
 pipelineServer.listen(pipelineConfig.initialPipeline.port);
+console.log("Listening on " + pipelineConfig.initialPipeline.port);
+
+planStore.start();
