@@ -57,9 +57,6 @@ export class Stage {
 
     public static HandlePipelineRequest(request: restify.Request, response: restify.Response, next: restify.Next, callback: (parameters: StageParameters) => void) {
 
-        var operation = request.params.operation;
-        console.log("Handling Pipeline request for " + operation);
-
         request.on('data', (chunk) => {
             var params = <StageParameters>MergeObjects(MergeJsonData({}, chunk.toString()),request.params);            
             console.log('Pipeline request paramaters ' + JSON.stringify(params));

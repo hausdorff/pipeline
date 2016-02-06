@@ -2,7 +2,7 @@ import http = require('http');
 import restify = require('restify');
 import pipelineConfig = require('./pipelineConfig');
 import pipeline = require('../pipeline');
-import planStore = require('./planStore');
+
 
 // The public server
 var server = restify.createServer();
@@ -52,4 +52,12 @@ console.log("Listening on " + pipelineConfig.initialPublic.port);
 pipelineServer.listen(pipelineConfig.initialPipeline.port);
 console.log("Listening on " + pipelineConfig.initialPipeline.port);
 
+
+// Running the stages locally
+import planStore = require('./planStore');
+import countStore = require('./countStore');
+import processJavascript = require('./processJavaScript');
+
 planStore.start();
+countStore.start();
+processJavascript.start();

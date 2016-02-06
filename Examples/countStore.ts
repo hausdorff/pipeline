@@ -9,6 +9,12 @@ export var server = restify.createServer();
 
 var count = 0;
 
+function DoIncrementCount(params) {
+    count++;
+    return count;
+}
+
+
 server.post('/api/:operation', (request, response, next) => {
     
     console.log('Count store pipeline operation started.');
@@ -16,26 +22,15 @@ server.post('/api/:operation', (request, response, next) => {
 
         var operation = params["operation"];
 
-        if (operation == 'currentCount') {
-            pipeline.Stage.Process(params,
-                [
-                    { url: pipelineConfig.countStore.address, path: '/currentCount', params: { resultName: "count" } },
-                    { url: pipelineConfig.processJavascript.address, path: '/execute', params: { code: "return 'Current count is ' + count;", resultName: "result" } },
-                    { url: params.initialStageAddress, path: '/pipeline/result', params: {} }
-                ]);
+        if (operation == 'incrementCount') {
+            var resultName = params['resultName'].toString();            
+            params[resultName] = DoIncrementCount(params); 
+            pipeline.Stage.Process(params,params.stages);
         }
-
-        else if (operation == 'hello') {
-            pipeline.Stage.Process(params,
-                [
-                    { url: params.initialStageAddress, path: '/pipeline/result', params: { result: "Hello World!" } }
-                ]);
-        }
-
     });
 });
 
 export function start() {
-    server.listen(pipelineConfig.planStore.port);
-    console.log('Listening on ' + pipelineConfig.planStore.port);
+    server.listen(pipelineConfig.countStore.port);
+    console.log('Listening on ' + pipelineConfig.countStore.port);
 }
