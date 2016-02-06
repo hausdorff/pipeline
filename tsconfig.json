@@ -1,7 +1,9 @@
 {
   "compilerOptions": {      
       "module": "commonjs",
-      "sourceMap": true
+      "sourceMap": true,
+      "outDir": "dist",
+      "target": "es5"
   },
   "exclude": [
     "typings/browser.d.ts",
