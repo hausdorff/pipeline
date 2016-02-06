@@ -13,9 +13,9 @@ var executeUrl = "http://localhost:8085";
 var server = restify.createServer();
 var pipeline = restify.createServer();
 
-var planStoreStage = restify.createStringClient({ url: planStoreUrl });
-var countStoreStage = restify.createStringClient({ url: countStoreUrl });
-var executeStage = restify.createStringClient({ url: executeUrl });
+var planStoreStage = restify.createJsonClient({ url: planStoreUrl });
+var countStoreStage = restify.createJsonClient({ url: countStoreUrl });
+var executeStage = restify.createJsonClient({ url: executeUrl });
 
 interface session {
     request: restify.Request;
@@ -47,21 +47,16 @@ pipeline.post('/pipeline/:operation', (request, response, next) => {
     console.log('Got message from pipeline with operation ' + request.params.operation);
     request.on('data', (chunk) => {
         console.log('data is \r\n' + JSON.stringify(chunk.toString()));
-        var params = null;
-        try {
-            params = chunk.toString().split('&')
-                .map((kv) => kv.split('='))
-                .reduce((r, kvp) => { r[kvp[0]] = !kvp[1] ? true : kvp[1]; return r; }, {});
-        } catch (err) { console.log('Error parsing request.'); }
+        var params = MergeJsonData(request.params,chunk.toString());        
         console.log('parsed as ' + JSON.stringify(params));
 
-        var session = sessions[params.session];
+        var session = typeof params["session"] == undefined ? null : sessions[params["session"]];        
         if (!session) {
-            console.log('No session found for ' + params.session);
+            console.log('No session found.');
             return next(new restify.InternalServerError("No session in pipeline operation"));
         }
-        if (request.params.operation == 'result') {
-            session.response.send(201, params.result);
+        if (request.params.operation == 'result') {            
+            session.response.send(201, params["result"]);
             session.next();
             return next();
         } else if (request.params.operation == 'error') {
@@ -86,11 +81,10 @@ interface Stage {
 function ProcessNextStage(stages: Stage[], params: Object) {
     if (stages.length == 0) return;
     var current = stages.shift();
-    var currentClient = restify.createStringClient({ url: current.url });
-
+    var currentClient = restify.createJsonClient({ url: current.url });    
     Object.keys(current.params).forEach((key) => params[key] = current.params[key]);
     params["stages"] = stages;
-    console.log ('Sending to ' + current.url + current.path + ' ' + JSON.stringify(params));
+    console.log('Sending to ' + current.url + current.path + ' ' + JSON.stringify(params));
     currentClient.post(current.path, params, (error, request, response, result) => {
         if (response.statusCode != 201) {
             console.log('Error sending to ' + current.url + current.path);
@@ -104,14 +98,9 @@ planStoreServer.post('/lookup/:operation', (request, response, next) => {
     var operation = request.params.operation;
     console.log("Lookup plan for " + operation);
     request.on('data', (chunk) => {
-        var params = Object.keys(request.params).reduce((previous,key) => { previous[key] = request.params[key]; return previous; },{});
-        try {
-            params = chunk.toString().split('&')
-                .map((kv) => kv.split('='))
-                .reduce((r, kvp) => { r[kvp[0]] = !kvp[1] ? true : kvp[1]; return r; }, {});
-        } catch (err) { console.log('Error parsing request.'); }
-        console.log('plan parameters '+ JSON.stringify(params));
-        if (operation ==  'currentCount') {
+        var params = MergeJsonData(request.params,chunk.toString());
+        console.log('plan parameters ' + JSON.stringify(params));
+        if (operation == 'currentCount') {
             var stages: Stage[] = [
                 { url: countStoreUrl, path: '/currentCount', params: { resultName: "count" } },
                 { url: executeUrl, path: '/execute', params: { code: "return 'Hello ' + count", resultName: "result" } },
@@ -122,7 +111,7 @@ planStoreServer.post('/lookup/:operation', (request, response, next) => {
             var initialStage = params["initialStageAddress"];
             if (!initialStage) { throw "No initial stage address"; }
             ProcessNextStage([
-                { url: initialStage, path: '/pipeline/result', params: { result: "Hello World!"  } }
+                { url: initialStage, path: '/pipeline/result', params: { result: "Hello World!" } }
             ], params);
         }
         response.send(201);
@@ -131,3 +120,23 @@ planStoreServer.post('/lookup/:operation', (request, response, next) => {
 });
 
 planStoreServer.listen(planStoreServerPort);
+
+function MergeJsonData(start : Object, json: string): Object {
+    var result  = Object.keys(start).reduce((previous,key) => { previous[key] = start[key]; return previous }, {});
+    var data = {}
+    try {
+        data = JSON.parse(json)
+    } catch (err) { }
+    Object.keys(data).forEach((key) => { result[key] = data[key]; });
+    return result;
+}
+
+function ParseNameValues(data: string): Object {
+    var result = {};
+    try {
+        result = data.split('&')
+            .map((kv) => kv.split('='))
+            .reduce((r, kvp) => { if (kvp[0]) r[kvp[0]] = !kvp[1] ? true : kvp[1]; return r; }, {});
+    } catch (err) { console.log('Error parsing request.'); }
+    return result;
+}
