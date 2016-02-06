@@ -7,43 +7,12 @@ import pipeline = require('../pipeline');
 
 export var server = restify.createServer();
 
-var count = 0;
-
-function escape(s) {
-    return s
-        .replace(/[\\]/g, '\\\\')
-        .replace(/[\"]/g, '\\\"')
-        .replace(/[\/]/g, '\\/')
-        .replace(/[\b]/g, '\\b')
-        .replace(/[\f]/g, '\\f')
-        .replace(/[\n]/g, '\\n')
-        .replace(/[\r]/g, '\\r')
-        .replace(/[\t]/g, '\\t');
-}
-
-function stringify(s) {
-    return '"' + escape(JSON.stringify(s)) + '"';
-};
-
-function CodeForParameter(key: string, value: any) {
-    return `var ${key} = JSON.parse(${stringify(value)});
-    `;
-}
 
 function ProcessJavascript(params: Object) {
-    var Code =
-        `(function Code() {
-        ${
-        Object.keys(params).reduce((previous, key) => {
-            return previous + ((key != "code") ? CodeForParameter(key, params[key]) : "");
-        }, "")
-        }
-        return ${ params["code"]}
-    })();
-    `;
+    var code = Code(params);
     var result = null;
     try {
-        result = eval(Code);
+        result = eval(code);
     } catch (err) {
         result = err;
     }
@@ -66,4 +35,41 @@ export function start() {
     console.log('Listening on ' + pipelineConfig.processJavascript.port);
 }
 
+
+
+
+/// Generate code for eval
+
+function escape(s) {
+    return s
+        .replace(/[\\]/g, '\\\\')
+        .replace(/[\"]/g, '\\\"')
+        .replace(/[\/]/g, '\\/')
+        .replace(/[\b]/g, '\\b')
+        .replace(/[\f]/g, '\\f')
+        .replace(/[\n]/g, '\\n')
+        .replace(/[\r]/g, '\\r')
+        .replace(/[\t]/g, '\\t');
+}
+
+function stringify(s) {
+    return '"' + escape(JSON.stringify(s)) + '"';
+};
+
+function CodeForParameter(key: string, value: any) {
+    return `var ${key} = JSON.parse(${stringify(value)});
+    `;
+}
+
+function Code(params) {
+   return `(function Code() {
+        ${
+        Object.keys(params).reduce((previous, key) => {
+            return previous + ((key != "code") ? CodeForParameter(key, params[key]) : "");
+        }, "")
+        }
+        return ${ params["code"]}
+    })();
+    `;    
+}
 
