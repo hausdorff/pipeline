@@ -1,6 +1,8 @@
 import restify = require("restify");
 
-var lastSessionId = 1;
+
+
+var lastSessionId = 0;
 
 export class Session {
     public request: restify.Request;
@@ -18,6 +20,7 @@ export class Session {
         this.id = this.nextSessionId().toString();
     }
 }
+
 
 export class SessionManager {
     public add(session: Session): string { this.sessions[session.id] = session; return session.id; }
@@ -72,6 +75,14 @@ export class Stage {
 }
 
 
+class PartitionMapper {
+    public mapper : (Object) => restify.Client;
+    public map(entity : Object) : restify.Client {
+        return this.mapper(entity);
+    } 
+}
+
+
 export function MergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
     var data = {}
@@ -99,3 +110,4 @@ export function NameValues(data: string): Object {
     } catch (err) { console.log('Error parsing name/value string.'); }
     return result;
 }
+
