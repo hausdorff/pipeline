@@ -35,7 +35,7 @@ There are two main missing enhancements that we plan to work on next:
 First clone the repo locally.  Then run the following commands:
 
     npm install
-    npm run install-types
+    npm run typings
     npm run build
 
 You can then start the program with 

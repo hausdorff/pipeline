@@ -1,13 +1,13 @@
 {
   "name": "Forward",
   "version": "0.1.0",
-  "description": "Brainstorming on a one-way pipeline",
-  "main": "server.js",
+  "description": "Brainstorming on how to build request processing pipelines in Node",
+  "main": "./dist/Examples/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p .",
     "watch": "tsc -p . --watch",
-    "typings": "typings install"
+    "typings": "tsd install"
   },
   "author": "",
   "license": "MIT",
