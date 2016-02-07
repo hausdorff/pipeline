@@ -15,7 +15,7 @@ With curl or the browser you can call the server with the following requests as 
 
 The **front end** servers receive REST requests.  The server that receives the request examines the path to identify the desired operation. Based on the operation, the front end server forwards the request - and some additional information - to one of a partitioned set of **plan** servers.  
 
-The plan server then look at the forwarded request and creates a computation plan.  Next it begins executing it.  Generally the computation plan describe sending messages to a sequence of servers - the pipeline **stages** - that will process the message. 
+The plan server examines the forwarded request and associated operation and creates a computation plan.  Next the server begins executing the computation plan.  Generally a computation plan will describe sending messages to a sequence of servers - the pipeline **stages** - that will process the request.
 
 A pipeline stage may perform a variety of functions; in the current prototype some pipeline stages can perform data modification and lookup and others stages can execute javascript.
 
