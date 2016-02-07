@@ -1,5 +1,5 @@
 import restify = require("restify");
-
+import URL = require("url");
 
 
 var lastSessionId = 0;
@@ -28,6 +28,17 @@ export class SessionManager {
     sessions: { [key: string]: Session } = {};
 }
 
+export class ClientManager {
+    public find(location: string){
+        var url = URL.parse(location);
+        var clientAddress = url.protocol + url.host
+        if (!this.clients[clientAddress]) {
+            this.clients[clientAddress] = restify.createJsonClient({url : clientAddress});            
+        }
+        return this.clients[clientAddress];               
+    }
+    clients : { [key: string] : restify.Client } = {};
+}
 
 export interface StageParameters {
     [key: string]: Object;
@@ -75,12 +86,26 @@ export class Stage {
 }
 
 
-class PartitionMapper {
+export class PartitionMapper {
     public mapper : (Object) => restify.Client;
     public map(entity : Object) : restify.Client {
-        return this.mapper(entity);
+        return this.mapper(entity);        
     } 
+    constructor(mapper : (Object)=> restify.Client) {
+        this.mapper = mapper;
+    }
 }
+
+export class PartitionManager {
+    public find(name: string){
+        return this.partitions[name];               
+    }
+    public add(name : string, partition : PartitionMapper) {
+        this.partitions[name] = partition;
+    }
+    partitions : { [key: string] : PartitionMapper } = {};
+}
+
 
 
 export function MergeJsonData(start: Object, json: string): Object {

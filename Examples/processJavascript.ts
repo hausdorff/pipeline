@@ -32,13 +32,16 @@ server.post('/execute', (request, response, next) => {
 
 export function start() {
     server.listen(pipelineConfig.processJavascript.port);
-    console.log('Listening on ' + pipelineConfig.processJavascript.port);
+    console.log('Javascript processor listening on ' + pipelineConfig.processJavascript.port);
 }
 
 
 
 
-/// Generate code for eval
+
+
+// -------------------
+// Code gen for eval
 
 function escape(s) {
     return s
@@ -62,6 +65,7 @@ function CodeForParameter(key: string, value: any) {
 }
 
 function Code(params) {
+   // Keeping all variables scoped to minimize any potential conflicts
    return `(function Code() {
         ${
         Object.keys(params).reduce((previous, key) => {

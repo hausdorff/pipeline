@@ -11,11 +11,16 @@ function operation(request: restify.Request, response: restify.Response, next: r
     console.log('Got message from client with paramaters ' + JSON.stringify(request.params));
     var operation = request.params.operation;
     var session = sessions.add(new pipeline.Session(request, response, next));
-    pipelineConfig.planStore.client.post('/lookup/' + operation,
+    
+    // Get client to vector to appropriate plan store 
+    var client = pipelineConfig.partitionManager.find("planStore").map(operation);
+    
+    // Forwad message on to the next stage (the Plan Store) with additional params including the session and return address
+    client.post('/lookup/' + operation,
         pipeline.MergeObjects(request.params, { operation: operation, session: session, initialStageAddress: pipelineConfig.initialPipeline.address }),
         (err, req, res, obj) => {
             if (res.statusCode == 201) {
-                // do nothing... the response will be sent back via the pipeline.  
+                // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
             } else {
                 next(err);
             }
@@ -48,16 +53,10 @@ pipelineServer.post('/pipeline/:operation', (request, response, next) => {
 });
 
 server.listen(pipelineConfig.initialPublic.port);
-console.log("Listening on " + pipelineConfig.initialPublic.port);
+console.log("REST interface listening on " + pipelineConfig.initialPublic.port);
+
 pipelineServer.listen(pipelineConfig.initialPipeline.port);
-console.log("Listening on " + pipelineConfig.initialPipeline.port);
+console.log("Initial pipeline stage listening on " + pipelineConfig.initialPipeline.port);
 
-
-// Running the stages locally
-import planStore = require('./planStore');
-import countStore = require('./countStore');
-import processJavascript = require('./processJavaScript');
-
-planStore.start();
-countStore.start();
-processJavascript.start();
+// Start the rest of the pipeline
+pipelineConfig.start();

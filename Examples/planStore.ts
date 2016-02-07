@@ -5,9 +5,15 @@ import pipeline = require('../pipeline');
 
 // An example
 
-export var server = restify.createServer();
+export var serverA = restify.createServer();
+export var serverB = restify.createServer();
 
-server.post('/lookup/:operation', (request, response, next) => {
+// Simulate Partioning Plans - both servers kown the plans
+
+serverA.post('/lookup/:operation',PlanStore);
+serverB.post('/lookup/:operation',PlanStore);
+
+function PlanStore (request, response, next)  {
 
     console.log('Plan store pipeline operation started.');
     pipeline.Stage.HandlePipelineRequest(request, response, next, (params) => {
@@ -42,9 +48,12 @@ server.post('/lookup/:operation', (request, response, next) => {
         }
 
     });
-});
+}
+
 
 export function start() {
-    server.listen(pipelineConfig.planStore.port);
-    console.log('Listening on ' + pipelineConfig.planStore.port);
+    serverA.listen(pipelineConfig.planStoreA.port);
+    console.log('Plan store A listening on ' + pipelineConfig.planStoreA.port);
+    serverB.listen(pipelineConfig.planStoreB.port);
+    console.log('Plan store B listening on ' + pipelineConfig.planStoreB.port);
 }
