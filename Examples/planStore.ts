@@ -23,7 +23,7 @@ function PlanStore (request, response, next)  {
         if (operation == 'counter') {
             pipeline.Stage.Process(params,
                 [
-                    { url: pipelineConfig.countStore.address, path: '/api/incrementCount', params: { resultName: "result" } },
+                    { url: pipelineConfig.countStore.url.href, path: '/api/incrementCount', params: { resultName: "result" } },
                     { url: params.initialStageAddress, path: '/pipeline/result', params: {} }
                 ]);
         }
@@ -31,8 +31,8 @@ function PlanStore (request, response, next)  {
         else if (operation == 'simpleProgram') {
             pipeline.Stage.Process(params,
                 [
-                    { url: pipelineConfig.countStore.address, path: '/api/incrementCount', params: { resultName: "count" } },
-                    { url: pipelineConfig.processJavascript.address, path: '/execute', params: { 
+                    { url: pipelineConfig.countStore.url.href, path: '/api/incrementCount', params: { resultName: "count" } },
+                    { url: pipelineConfig.processJavascript.url.href, path: '/execute', params: { 
                         code: "'Current count is ' + count + ' at ' + new Date(Date.now()).toLocaleString();",
                         resultName: "result" } 
                     },
@@ -52,8 +52,8 @@ function PlanStore (request, response, next)  {
 
 
 export function start() {
-    serverA.listen(pipelineConfig.planStoreA.port);
-    console.log('Plan store A listening on ' + pipelineConfig.planStoreA.port);
-    serverB.listen(pipelineConfig.planStoreB.port);
-    console.log('Plan store B listening on ' + pipelineConfig.planStoreB.port);
+    serverA.listen(pipelineConfig.planStoreA.url.port);
+    console.log('Plan store A listening on ' + pipelineConfig.planStoreA.url.port);
+    serverB.listen(pipelineConfig.planStoreB.url.port);
+    console.log('Plan store B listening on ' + pipelineConfig.planStoreB.url.port);
 }

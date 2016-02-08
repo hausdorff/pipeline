@@ -29,11 +29,11 @@ server.post('/api/:operation', (request, response, next) => {
             params[resultName] = DoIncrementCount(params);
             if (simulateDelay) {
                 var delay = Math.floor(Math.random() * 2000);
-                console.log("Simulating long-running count store pipeline stage with delay of " + delay + "ms for session " + params["session"];
+                console.log("Simulating long-running count store pipeline stage with delay of " + delay + "ms for session " + params["session"]);
                 setTimeout(() => {
                     console.log("Continuing long-running count store pipeline stage for session " + params["session"]);
                     pipeline.Stage.Process(params, params.stages);
-                }, delay)
+                }, delay);
             }            
             else pipeline.Stage.Process(params, params.stages);
         }
@@ -41,6 +41,6 @@ server.post('/api/:operation', (request, response, next) => {
 });
 
 export function start() {
-    server.listen(pipelineConfig.countStore.port);
-    console.log('Count Store listening on ' + pipelineConfig.countStore.port);
+    server.listen(pipelineConfig.countStore.url.port);
+    console.log('Count Store listening on ' + pipelineConfig.countStore.url.port);
 }

@@ -21,24 +21,44 @@ export class Session {
     }
 }
 
-
 export class SessionManager {
     public add(session: Session): string { this.sessions[session.id] = session; return session.id; }
     public find(sessionId: string): Session { return this.sessions[sessionId]; }
     sessions: { [key: string]: Session } = {};
 }
 
-export class ClientManager {
-    public find(location: string){
-        var url = URL.parse(location);
-        var clientAddress = url.protocol + url.host
-        if (!this.clients[clientAddress]) {
-            this.clients[clientAddress] = restify.createJsonClient({url : clientAddress});            
-        }
-        return this.clients[clientAddress];               
+export var sessions = new SessionManager();
+
+export class PipelineClient implements restify.Client {
+    public url: URL.Url;
+    private implementation: restify.Client;
+    // Just a passthrough to the implementation
+    public get(path: string, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.get(path, callback); }
+    public head(path: string, callback?: (err: any, req: restify.Request, res: restify.Response) => any): any { return this.implementation.head(path, callback); }
+    public post(path: string, object: any, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.post(path, object, callback); }
+    public put(path: string, object: any, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.put(path, object, callback); }
+    public del(path: string, callback?: (err: any, req: restify.Request, res: restify.Response) => any): any { return this.implementation.del(path,callback); }
+    public basicAuth(username: string, password: string): any { return this.implementation.basicAuth(username, password); }
+    constructor(url : URL.Url, client: restify.Client)
+    {
+        this.url = url;
+        this.implementation = client;
     }
-    clients : { [key: string] : restify.Client } = {};
 }
+export class ClientManager {
+    public find(location: string): PipelineClient {
+        var url = URL.parse(location);
+        var clientAddress = url.protocol + '//' + url.host
+        if (!this.clients[clientAddress]) {
+            this.clients[clientAddress] = new PipelineClient(url,restify.createJsonClient({ url: clientAddress }));
+        }
+        return this.clients[clientAddress];
+    }
+    clients: { [key: string]: PipelineClient } = {};
+}
+
+export var clients = new ClientManager();
+
 
 export interface StageParameters {
     [key: string]: Object;
@@ -72,7 +92,7 @@ export class Stage {
     public static HandlePipelineRequest(request: restify.Request, response: restify.Response, next: restify.Next, callback: (parameters: StageParameters) => void) {
 
         request.on('data', (chunk) => {
-            var params = <StageParameters>MergeObjects(MergeJsonData({}, chunk.toString()),request.params);            
+            var params = <StageParameters>MergeObjects(MergeJsonData({}, chunk.toString()), request.params);
             console.log('Pipeline request paramaters ' + JSON.stringify(params));
             if (!params["session"] && !params["initialStageAddres"]) { console.log("Pipeline stage called without sessionId or initialStageAddress"); }
             callback(params);
@@ -87,25 +107,26 @@ export class Stage {
 
 
 export class PartitionMapper {
-    public mapper : (Object) => restify.Client;
-    public map(entity : Object) : restify.Client {
-        return this.mapper(entity);        
-    } 
-    constructor(mapper : (Object)=> restify.Client) {
+    public mapper: (Object) => restify.Client;
+    public map(entity: Object): restify.Client {
+        return this.mapper(entity);
+    }
+    constructor(mapper: (Object) => restify.Client) {
         this.mapper = mapper;
     }
 }
 
 export class PartitionManager {
-    public find(name: string){
-        return this.partitions[name];               
+    public find(name: string): PartitionMapper {
+        return this.partitions[name];
     }
-    public add(name : string, partition : PartitionMapper) {
+    public add(name: string, partition: PartitionMapper) {
         this.partitions[name] = partition;
     }
-    partitions : { [key: string] : PartitionMapper } = {};
+    partitions: { [key: string]: PartitionMapper } = {};
 }
 
+export var partitionManager = new PartitionManager();
 
 
 export function MergeJsonData(start: Object, json: string): Object {

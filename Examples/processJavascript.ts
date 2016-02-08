@@ -31,8 +31,8 @@ server.post('/execute', (request, response, next) => {
 });
 
 export function start() {
-    server.listen(pipelineConfig.processJavascript.port);
-    console.log('Javascript processor listening on ' + pipelineConfig.processJavascript.port);
+    server.listen(pipelineConfig.processJavascript.url.port);
+    console.log('Javascript processor listening on ' + pipelineConfig.processJavascript.url.port);
 }
 
 
