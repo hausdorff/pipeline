@@ -68,6 +68,8 @@ export interface StageParameters {
     trace?: string[];
 }
 
+//TODO no good reason to have the HandlePipelineRequest and Process be static on Stage.  Just make it module top-level and it cleans up the syntax to use it.
+
 export class Stage {
     public url: string;
     public path: string;

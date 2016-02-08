@@ -50,6 +50,8 @@ pipelineServer.post('/pipeline/:operation', (request, response, next) => {
     });
 });
 
+// Startup the listeners
+
 server.listen(pipelineConfig.initialPublic.url.port);
 console.log("REST interface listening on " + pipelineConfig.initialPublic.url.port);
 
@@ -57,4 +59,5 @@ pipelineServer.listen(pipelineConfig.initialPipeline.url.port);
 console.log("Initial pipeline stage listening on " + pipelineConfig.initialPipeline.url.port);
 
 // Start the rest of the pipeline
+
 pipelineConfig.start();
