@@ -1,63 +1,48 @@
 import http = require('http');
 import restify = require('restify');
+import pipes = require('../pipes');
 import pipelineConfig = require('./pipelineConfig');
-import pipeline = require('../pipeline');
+import pipelineConfigServer = require('./pipelineConfigServer');
 
+console.log("Starting. ConfigServer does not exist is " + !pipelineConfigServer.server);
+var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-// The public server
+// Start a vanilla restify server that send messages to a pipeline
+
 var server = restify.createServer();
 
-function operation(request: restify.Request, response: restify.Response, next: restify.Next) {
+function restifyServerHandler(pipeline: pipes.Pipeline, request: restify.Request, response: restify.Response, next: restify.Next) {
     console.log('Got message from client with paramaters ' + JSON.stringify(request.params));
     var operation = request.params.operation;
-    var session = pipeline.sessions.add(new pipeline.Session(request, response, next));
-    
-    // Get client to vector to appropriate plan store 
-    var client = pipeline.partitionManager.find("planStore").map(operation);
-    
-    // Forwad message on to the next stage (the Plan Store) with additional params including the session and return address
-    client.post('/lookup/' + operation,
-        pipeline.MergeObjects(request.params, { operation: operation, session: session, initialStageAddress: pipelineConfig.initialPipeline.url.href }),
-        (err, req, res, obj) => {
-            if (res.statusCode == 201) {
-                // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
-            } else {
-                next(err);
-            }
-        });
+    var session = pipeline.restifySessions.add(request, response, next);
+
+    pipeline.send('lookup',
+        '/lookup/' + operation,
+        pipes.MergeObjects(request.params, { operation: operation, session: session, initialNode: pipelineServer.myUrl.host }));
 }
 
-server.post('/api/:operation', operation);
-server.get('/api/:operation', operation);
+server.post('/api/:operation', (req, res, next) => restifyServerHandler(pipeline, req, res, next));
+server.get('/api/:operation', (req, res, next) => restifyServerHandler(pipeline, req, res, next));
 
-// the Pipeline interface for this app
+server.listen(pipelineConfig.frontdoorRestPort);
+console.log("REST interface listening on " + pipelineConfig.frontdoorRestPort);
 
-var pipelineServer = restify.createServer();
+// Instantiate a pipeline server that will listen on /pipeline/result and send the result to the client.
 
-pipelineServer.post('/pipeline/:operation', (request, response, next) => {
-    
-    pipeline.Stage.HandlePipelineRequest(request, response, next, (params) => {
-        var session = pipeline.sessions.find(params["session"]);
-        if (params["operation"] == 'result') {
-            console.log('Send to client with body ' + params["result"]);                
-            session.response.send(201, params["result"]);
-            session.next();            
-        } 
-        
-        else if (params["operation"] == 'error') {
-            session.next(new restify.InternalServerError(request.params.error));            
-        }
-    });
+var pipelineServer = pipeline.createServer('frontdoorStage');
+
+pipelineServer.process('/pipeline/result', (params) => {
+    var result = params && params["result"];
+    var sessionId = params && params["session"];
+    var session = sessionId && this.pipeline.restifySessions.find(params[sessionId]);
+
+    if (!result || !session) { console.log('/pipeline/result called improperly'); return; }
+
+    console.log('Send response to HTTP client with body ' + params["result"]);
+    session.response.send(201, params["result"]);
+    session.next();
 });
 
-// Startup the listeners
+pipelineServer.listen(pipelineConfig.frontdoorPort);
+console.log("Initial pipeline stage listening on " + pipelineConfig.frontdoorPort);
 
-server.listen(pipelineConfig.initialPublic.url.port);
-console.log("REST interface listening on " + pipelineConfig.initialPublic.url.port);
-
-pipelineServer.listen(pipelineConfig.initialPipeline.url.port);
-console.log("Initial pipeline stage listening on " + pipelineConfig.initialPipeline.url.port);
-
-// Start the rest of the pipeline
-
-pipelineConfig.start();

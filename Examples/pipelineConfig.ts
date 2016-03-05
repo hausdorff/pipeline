@@ -1,28 +1,17 @@
-
-import restify = require("restify");
 import url = require("url");
-import pipeline = require("../pipeline");
 
-import planStoreConfig = require('./planStore');
-import countStoreConfig = require('./countStore');
-import processJavascriptConfig = require('./processJavaScript');
+import planStoreStage = require('./planStore');
+import countStoreStage = require('./countStore');
+import processorJavascriptStage = require('./processJavascript');
 
-export var initialPublic = pipeline.clients.find("http://localhost:8080");
-export var initialPipeline = pipeline.clients.find("http://localhost:8085");
-export var planStoreA = pipeline.clients.find("http://localhost:8086");
-export var planStoreB = pipeline.clients.find("http://localhost:8087");
-export var countStore = pipeline.clients.find("http://localhost:8088");
-export var processJavascript = pipeline.clients.find("http://localhost:8089");
 
-pipeline.partitionManager.add("planStore", new pipeline.PartitionMapper((obj) => {
-    if (obj.toString() <= "Middle") return planStoreA;
-    else return planStoreB;
-}));
+export var pipelineConfigServerPort = 9000;
+export var frontdoorRestPort = 8000;
+export var frontdoorPort = 8080;
+export var planStorePort = 8081;
+export var countStorePort = 8082;
+export var processJavascriptPorts = [8083, 8084];
 
-// Running the stages locally
+export var pipelineConfigServerUrl = url.parse("http://localhost:" + pipelineConfigServerPort);
 
-export function start() {
-    planStoreConfig.start();
-    countStoreConfig.start();
-    processJavascriptConfig.start();
-}
+

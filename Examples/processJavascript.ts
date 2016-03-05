@@ -1,12 +1,16 @@
 import http = require('http');
 import restify = require('restify');
+import pipes = require('../pipes');
 import pipelineConfig = require('./pipelineConfig');
-import pipeline = require('../pipeline');
 
-// An example
+var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var server = restify.createServer();
+export var pipelineServer = pipeline.createServer('planStage');
 
+pipelineServer.process('/execute', (params, next) => {
+    ProcessJavascript(params);
+    next();
+});
 
 function ProcessJavascript(params: Object) {
     var code = Code(params);
@@ -19,26 +23,8 @@ function ProcessJavascript(params: Object) {
     return result;
 }
 
-server.post('/execute', (request, response, next) => {
-
-    console.log('Process Javascript started.');
-    pipeline.Stage.HandlePipelineRequest(request, response, next, (params) => {
-        var resultName = params['resultName'].toString();
-        params[resultName] = ProcessJavascript(params);
-        pipeline.Stage.Process(params, params.stages);
-
-    });
-});
-
-export function start() {
-    server.listen(pipelineConfig.processJavascript.url.port);
-    console.log('Javascript processor listening on ' + pipelineConfig.processJavascript.url.port);
-}
-
-
-
-
-
+pipelineServer.listen(pipelineConfig.processJavascriptPorts[0]);
+console.log('PlanStore Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
 
 // -------------------
 // Code gen for eval
@@ -65,8 +51,8 @@ function CodeForParameter(key: string, value: any) {
 }
 
 function Code(params) {
-   // Keeping all variables scoped to minimize any potential conflicts
-   return `(function Code() {
+    // Keeping all variables scoped to minimize any potential conflicts
+    return `(function Code() {
         ${
         Object.keys(params).reduce((previous, key) => {
             return previous + ((key != "code") ? CodeForParameter(key, params[key]) : "");
@@ -74,6 +60,6 @@ function Code(params) {
         }
         return ${ params["code"]}
     })();
-    `;    
+    `;
 }
 
