@@ -17,7 +17,7 @@ pipelineServer.process('/lookup/:operation', (params, next) => {
     
     else if (operation == 'counter') {
         pipeline.send(pipelineConfig.countStoreStage, '/rest/incrementCount', pipes.MergeObjects(params,{ resultName: "result" }), (ns_params, ns_next) => {
-            pipeline.sendToNode(params["initialNode"], '/pipeline/result', ns_params);
+            pipeline.sendToNode(ns_params["initialNode"], '/pipeline/result', ns_params);
             ns_next();            
         });
     }
