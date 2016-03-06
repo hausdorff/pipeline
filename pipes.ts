@@ -1,6 +1,7 @@
 import restify = require("restify");
 import URL = require("url");
-import net = require('net');
+
+var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
 
 export class Pipeline {
     public lastSessionId = 0;
@@ -10,29 +11,51 @@ export class Pipeline {
     public configServer : restify.Client;
          
     public send(stageName: string, path: string, parameters: any, code? : (any)=> void) {
-        this.config.find(stageName).map(parameters).send(path, MergeObjects({}, parameters, code ? {} : { code: code.toString() }), (err) => { throw err; });
+        var client = this.config.find(stageName).map(parameters);
+        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
+        
+        console.log('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params, code)
+        client.send(path, params, (err) => { 
+            throw err; 
+        });
+    }
+    
+    public sendToNode(address: string, path: string, parameters: any, code? : (any)=> void) {
+        var client = this.clients.find(address);
+        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
+        
+        console.log('Sending to node with address', client.url.href, 'and parameters\r\n',params, code)
+        client.send(path, params, (err) => { 
+            throw err; 
+        });
     }
 
     public execute(stageName: string, parameters: any, code: (params: any) => void) {
         this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
     }
     
-    public createServer(stageName: string) : PipelineServer {
-         
+    public createServer(stageName: string) : PipelineServer {         
         return new PipelineServer(this, stageName); 
     }
-    
+        
     public loadConfiguration() {
         this.configServer.get('/config',(err,req,res,obj) => {
            if (err) throw err;
+           
            Object.keys(obj).forEach((key)=>{
-               this.config.add(key,new Stage(key, obj[key].nodes, obj[key].map))
+               var addressMap = defaultMap;
+               try { addressMap = eval('(' + obj[key].map +  ')')} catch (err) {}
+               var map = (nodes : string[], params : any) : PipelineClient => {
+                   return this.clients.find(addressMap(nodes,params));
+               }
+               this.config.add(key,new Stage(key, obj[key].nodes, map));
            }); 
         });  
     }
     
     constructor(configurationUrl: URL.Url) {
         this.configServer = restify.createJsonClient({url: configurationUrl.href});
+        this.loadConfiguration();
     }
 }
 
@@ -106,59 +129,14 @@ export class ClientManager {
     clients: { [key: string]: PipelineClient } = {};
 }
 
-export interface StageParameters {
-    [key: string]: Object;
-    session: string;
-    initialStageAddress?: string;
-    stages?: OldStageToDelete[];
-    trace?: string[];
-}
-
-export class OldStageToDelete {
-    public url: string;
-    public path: string;
-    public params: Object;
-
-    public static Process(params: Object, stages: OldStageToDelete[]) {
-        if (stages.length == 0) return;
-        var current = stages.shift();
-        var currentClient = restify.createJsonClient({ url: current.url });  //TODO: Should maintain a map based on address instead of creating each time.
-        Object.keys(current.params).forEach((key) => params[key] = current.params[key]);
-        params["stages"] = stages;
-        console.log('Sending to ' + current.url + current.path + ' ' + JSON.stringify(params));
-        currentClient.post(current.path, params, (error, request, response, result) => {
-            if (response.statusCode != 201) {
-                console.log('Error sending to ' + current.url + current.path);
-            }
-        });
-
-
-    }
-
-    public static HandlePipelineRequest(request: restify.Request, response: restify.Response, next: restify.Next, callback: (parameters: StageParameters) => void) {
-
-        request.on('data', (chunk) => {
-            var params = <StageParameters>MergeObjects(MergeJsonData({}, chunk.toString()), request.params);
-            console.log('Pipeline request paramaters ' + JSON.stringify(params));
-            if (!params["session"] && !params["initialStageAddres"]) { console.log("Pipeline stage called without sessionId or initialStageAddress"); }
-            callback(params);
-        });
-
-        request.on('end', () => {
-            response.send(201);
-            next();
-        });
-    }
-}
-
 export class Stage {
     public name : string;
     public nodes : string[] = [];
-    public mapper: (Object) => PipelineClient;
+    public mapper: (nodes : string[], params : Object) => PipelineClient;
     public map(parameters: Object): PipelineClient {
-        return this.mapper(parameters);
+        return this.mapper(this.nodes,parameters);
     }
-    constructor(name : string, nodes : string[], mapper: (Object) => PipelineClient) {
+    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
         this.name = name;
         this.nodes = nodes;
         this.mapper = mapper;
@@ -182,14 +160,14 @@ export class PipelineServer {
     public myUrl : URL.Url = null;
     public port : string;
         
-    public process(route : string, handler : (params : Object, next? : () => void) => void) {        
-        this.implementation.post(route, (req, res) => {
+    public process(route : string, handler : (params : Object, next : () => void) => void) {                
+        this.implementation.post(route, (req, res, next) => {
             var code = req.params.code;
-            handler(req.params, ()=> { if (code) { eval(code); }});
+            handler(req.params, ()=> { next(); if (code) { eval(code); }});
         });       
-        this.implementation.get(route, (req, res) => { 
+        this.implementation.get(route, (req, res, next) => { 
             var code = req.params.code;
-            handler(req.params, ()=> { if (code) { eval(code); }});
+            handler(req.params, ()=> { next(); if (code) { eval(code); }});
         });
     }
     
@@ -198,16 +176,22 @@ export class PipelineServer {
         this.stageName = stageName;
         var serverOptions = {};
         this.implementation = restify.createServer(serverOptions);
+        this.implementation.use(restify.bodyParser({mapParams: true}));
+    }
+    
+    public notifyConfigServerOfAvailablityAndGetAddress() {
+         this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage : this.stageName, port : this.port }, (err, req, res, obj) => {
+            if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
+            console.log('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);     
+            this.myUrl = URL.parse(obj.address);
+        });
     }
     
     public listen(... args : any[]) {
         this.port = args[0];
         this.implementation.listen.apply(this.implementation,args);
-        this.pipeline.configServer.post('/stages/' + this.stageName + '/addNode', { stage : this.stageName, port : args[0]}, (err, req, res, obj) => {
-            if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
-            this.myUrl = URL.parse(obj.address);
-        });
-    }    
+       this.notifyConfigServerOfAvailablityAndGetAddress();
+    }   
 }
 
 export function MergeJsonData(start: Object, json: string): Object {
@@ -218,11 +202,14 @@ export function MergeJsonData(start: Object, json: string): Object {
     return result;
 }
 
-export function MergeObjects(start: Object, next: Object, ...more: Object[]): Object {
-    var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
-    Object.keys(next).forEach((key) => { result[key] = next[key]; });
-    if (more.length > 0) { return (result, more.shift(), more) }
-    return result;
+export function MergeObjects(output : Object, ...args: Object[]): Object {
+      for (var index = 0; index < args.length; index++) {
+        var source = args[index];
+        if (source !== undefined && source !== null) {
+          Object.keys(source).forEach((key) => {            
+              output[key] = source[key];
+          });
+      return output;
 }
 
 export function NameValues(data: string): Object {

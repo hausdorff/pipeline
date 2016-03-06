@@ -1,5 +1,4 @@
-import http = require('http');
-import restify = require('restify');
+
 import pipes = require('../pipes');
 import pipelineConfig = require('./pipelineConfig');
 
@@ -14,7 +13,7 @@ function DoIncrementCount(params) {
     return count;
 }
 
-pipelineServer.process('/rest/:operation', (params: Object, next : () => void ) => {
+pipelineServer.process('/rest/:operation', (params, next) => {
     var operation = params["operation"];
 
     if (operation == 'incrementCount') {
@@ -28,7 +27,7 @@ pipelineServer.process('/rest/:operation', (params: Object, next : () => void ) 
                 next();
             }, delay);
         }
-        next()
+        next();
     }
 });
 

@@ -5,7 +5,7 @@ import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var pipelineServer = pipeline.createServer('planStage');
+export var pipelineServer = pipeline.createServer(pipelineConfig.processJavascriptStage);
 
 pipelineServer.process('/execute', (params, next) => {
     ProcessJavascript(params);
@@ -24,7 +24,7 @@ function ProcessJavascript(params: Object) {
 }
 
 pipelineServer.listen(pipelineConfig.processJavascriptPorts[0]);
-console.log('PlanStore Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
+console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
 
 // -------------------
 // Code gen for eval
