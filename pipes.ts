@@ -10,7 +10,7 @@ export class Pipeline {
     public config = new StageManager();
     public configServer : restify.Client;
          
-    public send(stageName: string, path: string, parameters: any, code? : (any)=> void) {
+    public send(stageName: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
         var client = this.config.find(stageName).map(parameters);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
@@ -20,7 +20,7 @@ export class Pipeline {
         });
     }
     
-    public sendToNode(address: string, path: string, parameters: any, code? : (any)=> void) {
+    public sendToNode(address: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
         var client = this.clients.find(address);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
@@ -30,7 +30,7 @@ export class Pipeline {
         });
     }
 
-    public execute(stageName: string, parameters: any, code: (params: any) => void) {
+    public execute(stageName: string, parameters: any, code: (params : any,next : ()=>void)=> void) {
         this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
     }
     
