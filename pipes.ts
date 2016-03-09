@@ -97,6 +97,7 @@ export class PipelineClient implements restify.Client {
         this.post(path, parameters, (err, req, res, obj) => {
             if (err) { console.log('Error sending to ', path); throw 'Send error'; }
             if (res.statusCode == 201) {
+                console.log('Request complete for', this.url.href, path);
                 // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
             } else {
                 console.log('not sure why we are here in send');
@@ -161,7 +162,7 @@ export class PipelineServer {
     public myUrl: URL.Url = null;
     public port: string;
 
-    private handleCode(code: string, params: Object, next: () => void) {
+    private handleCode(code: string, params: Object, next: restify.Next) {
         if (!code) return;
         try {
             var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
@@ -169,18 +170,25 @@ export class PipelineServer {
         } catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
     }
 
-    public process(route: string, handler: (params: Object, next: () => void) => void) {
+    public process(route: string, handler: (handlerParams: Object, handlerNext: () => void) => void) {
         this.implementation.post(route, (req, res, next) => {
+            res.send(201);
             var code = req.params.code;
             var params = req.params;
             delete params.code;
-            handler(params, () => { this.handleCode(code, params, next); });
+            handler(params, () => { 
+                if (code) { this.handleCode(code, params, next); }
+                else { next(); }
+            });
         });
         this.implementation.get(route, (req, res, next) => {
             var code = req.params.code;
             var params = req.params;
             delete params.code;
-            handler(params, () => { this.handleCode(code, params, next); });
+            handler(params, () => { 
+                if (code) { this.handleCode(code, params, next); }
+                else { next(); }
+            });
         });
     }
 
