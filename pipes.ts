@@ -1,7 +1,34 @@
 import restify = require("restify");
 import URL = require("url");
 
-var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
+// default just takes the first node
+var defaultMap = (nodes : string[], params) => nodes[0];
+
+type requestAction = (params : any, next : () => void) => void;
+
+var configureServer =
+    (err, req, res, obj) => {
+        if (err) throw err;
+
+        Object.keys(obj).forEach((key)=>{
+            var addressMap = defaultMap;
+            try {
+                addressMap = eval('(' + obj[key].map +  ')')
+            }
+            catch (err) {}
+
+            var map = (nodes : string[], params : any) : PipelineClient => {
+                return this.clients.find(addressMap(nodes,params));
+            };
+
+            this.broker.add(key,new Stage(key, obj[key].nodes, map));
+        });
+        };
+
+
+//
+// Pipeline.
+//
 
 export class Pipeline {
     public lastSessionId = 0;
@@ -63,14 +90,27 @@ export function createPipeline(configurationUrl: string): Pipeline {
     return new Pipeline(URL.parse(configurationUrl));
 }
 
+export class ClientManager {
+    public find(location: string): PipelineClient {
+        var url = URL.parse(location);
+        var clientAddress = url.protocol + '//' + url.host
+        if (!this.clients[clientAddress]) {
+            this.clients[clientAddress] = new PipelineClient(url, restify.createJsonClient({ url: clientAddress }));
+        }
+        return this.clients[clientAddress];
+    }
+    clients: { [key: string]: PipelineClient } = {};
+}
+
 export class RestifySession {
     public request: restify.Request;
     public response: restify.Response;
     public next: restify.Next;
     public started: Date;
     public id: string;
-    
-    constructor(sessionId : string, request : restify.Request, response : restify.Response, next : restify.Next) {
+
+    constructor(sessionId : string, request : restify.Request,
+                response : restify.Response, next : restify.Next) {
         this.request = request;
         this.response = response;
         this.next = next;
@@ -81,11 +121,35 @@ export class RestifySession {
 
 export class RestifySessionManager {
     private curentSessionId = 0;
-    public add(request : restify.Request, response : restify.Response, next : restify.Next) {
+    sessions: { [key: string]: RestifySession } = {};
+
+    public add(request : restify.Request, response : restify.Response,
+               next : restify.Next) {
         var session = new RestifySession((this.curentSessionId++).toString(), request, response, next); 
         this.sessions[session.id] = session; return session.id; }
-    public find(sessionId: string): RestifySession { return this.sessions[sessionId]; }
-    sessions: { [key: string]: RestifySession } = {};
+
+    public find(sessionId: string): RestifySession {
+        return this.sessions[sessionId];
+    }
+}
+
+
+//
+// Stage.
+//
+
+export class Stage {
+    public name : string;
+    public nodes : string[] = [];
+    public mapper: (nodes : string[], params : Object) => PipelineClient;
+    public map(parameters: Object): PipelineClient {
+        return this.mapper(this.nodes,parameters);
+    }
+    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
+        this.name = name;
+        this.nodes = nodes;
+        this.mapper = mapper;
+    }
 }
 
 export class PipelineClient implements restify.Client {
@@ -119,33 +183,13 @@ export class PipelineClient implements restify.Client {
     public basicAuth(username: string, password: string): any { return this.implementation.basicAuth(username, password); }
 }
 
-export class ClientManager {
-    public find(location: string): PipelineClient {
-        var url = URL.parse(location);
-        var clientAddress = url.protocol + '//' + url.host
-        if (!this.clients[clientAddress]) {
-            this.clients[clientAddress] = new PipelineClient(url, restify.createJsonClient({ url: clientAddress }));
-        }
-        return this.clients[clientAddress];
-    }
-    clients: { [key: string]: PipelineClient } = {};
-}
 
-export class Stage {
-    public name : string;
-    public nodes : string[] = [];
-    public mapper: (nodes : string[], params : Object) => PipelineClient;
-    public map(parameters: Object): PipelineClient {
-        return this.mapper(this.nodes,parameters);
-    }
-    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
-        this.name = name;
-        this.nodes = nodes;
-        this.mapper = mapper;
-    }
-}
 
-export class StageManager {
+//
+// Service broker.
+//
+
+export class ServiceBroker {
     public find(name: string): Stage {
         return this.stages[name];
     }
@@ -155,6 +199,11 @@ export class StageManager {
     stages: { [key: string]: Stage } = {};
 }
 
+
+//
+// Pipeline server.
+//
+
 export class PipelineServer {
     private implementation: restify.Server;
     private pipeline: Pipeline;
@@ -162,7 +211,7 @@ export class PipelineServer {
     public myUrl: URL.Url = null;
     public port: string;
 
-    private handleCode(code: string, params: Object, next: restify.Next) {
+    private handleCode(code: string, params: Object, next: () => void) {
         if (!code) return;
         try {
             var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
@@ -170,25 +219,18 @@ export class PipelineServer {
         } catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
     }
 
-    public process(route: string, handler: (handlerParams: Object, handlerNext: () => void) => void) {
+    public process(route: string, handler: (params: Object, next: () => void) => void) {
         this.implementation.post(route, (req, res, next) => {
-            res.send(201);
             var code = req.params.code;
             var params = req.params;
             delete params.code;
-            handler(params, () => { 
-                if (code) { this.handleCode(code, params, next); }
-                else { next(); }
-            });
+            handler(params, () => { this.handleCode(code, params, next); });
         });
         this.implementation.get(route, (req, res, next) => {
             var code = req.params.code;
             var params = req.params;
             delete params.code;
-            handler(params, () => { 
-                if (code) { this.handleCode(code, params, next); }
-                else { next(); }
-            });
+            handler(params, () => { this.handleCode(code, params, next); });
         });
     }
 
@@ -214,6 +256,11 @@ export class PipelineServer {
         this.notifyConfigServerOfAvailablityAndGetAddress();
     }
 }
+
+
+//
+// Helper functions.
+//
 
 export function MergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
