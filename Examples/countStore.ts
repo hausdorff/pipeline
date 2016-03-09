@@ -19,6 +19,7 @@ pipelineServer.process('/rest/:operation', (params, next) => {
     if (operation == 'incrementCount') {
         var resultName = params['resultName'].toString();
         params[resultName] = DoIncrementCount(params);
+
         if (simulateDelay) {
             var delay = Math.floor(Math.random() * 2000);
             console.log("Simulating long-running count store pipeline stage with delay of " + delay + "ms for session " + params["session"]);
@@ -27,7 +28,10 @@ pipelineServer.process('/rest/:operation', (params, next) => {
                 next();
             }, delay);
         }
-        next();
+        else {
+            next();
+        }
+
     }
 });
 

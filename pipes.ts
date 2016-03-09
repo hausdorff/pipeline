@@ -14,7 +14,7 @@ export class Pipeline {
         var client = this.config.find(stageName).map(parameters);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
-        console.log('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params, code)
+        console.log('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params);
         client.send(path, params, (err) => { 
             throw err; 
         });
@@ -24,7 +24,7 @@ export class Pipeline {
         var client = this.clients.find(address);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
-        console.log('Sending to node with address', client.url.href, 'and parameters\r\n',params, code)
+        console.log('Sending to node with address', client.url.href, 'and parameters\r\n',params)
         client.send(path, params, (err) => { 
             throw err; 
         });
@@ -95,10 +95,11 @@ export class PipelineClient implements restify.Client {
     public send(path: string, parameters: Object, error: (any) => void) {
         // Forward message on to the next stage  with additional params including the session and return address
         this.post(path, parameters, (err, req, res, obj) => {
+            if (err) { console.log('Error sending to ', path); throw 'Send error'; }
             if (res.statusCode == 201) {
                 // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
             } else {
-                error(err);
+                console.log('not sure why we are here in send');
             }
         });
     }
@@ -154,44 +155,56 @@ export class StageManager {
 }
 
 export class PipelineServer {
-    private implementation : restify.Server;
-    private pipeline : Pipeline;
-    public stageName : string;
-    public myUrl : URL.Url = null;
-    public port : string;
-        
-    public process(route : string, handler : (params : Object, next : () => void) => void) {                
+    private implementation: restify.Server;
+    private pipeline: Pipeline;
+    public stageName: string;
+    public myUrl: URL.Url = null;
+    public port: string;
+
+    private handleCode(code: string, params: Object, next: () => void) {
+        if (!code) return;
+        try {
+            var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
+            f(this.pipeline, params, next);
+        } catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
+    }
+
+    public process(route: string, handler: (params: Object, next: () => void) => void) {
         this.implementation.post(route, (req, res, next) => {
             var code = req.params.code;
-            handler(req.params, ()=> { next(); if (code) { eval(code); }});
-        });       
-        this.implementation.get(route, (req, res, next) => { 
+            var params = req.params;
+            delete params.code;
+            handler(params, () => { this.handleCode(code, params, next); });
+        });
+        this.implementation.get(route, (req, res, next) => {
             var code = req.params.code;
-            handler(req.params, ()=> { next(); if (code) { eval(code); }});
+            var params = req.params;
+            delete params.code;
+            handler(params, () => { this.handleCode(code, params, next); });
         });
     }
-    
-    constructor(pipeline : Pipeline, stageName : string) {
+
+    constructor(pipeline: Pipeline, stageName: string) {
         this.pipeline = pipeline;
         this.stageName = stageName;
         var serverOptions = {};
         this.implementation = restify.createServer(serverOptions);
-        this.implementation.use(restify.bodyParser({mapParams: true}));
+        this.implementation.use(restify.bodyParser({ mapParams: true }));
     }
-    
+
     public notifyConfigServerOfAvailablityAndGetAddress() {
-         this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage : this.stageName, port : this.port }, (err, req, res, obj) => {
+        this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage: this.stageName, port: this.port }, (err, req, res, obj) => {
             if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
-            console.log('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);     
+            console.log('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
             this.myUrl = URL.parse(obj.address);
         });
     }
-    
-    public listen(... args : any[]) {
+
+    public listen(...args: any[]) {
         this.port = args[0];
-        this.implementation.listen.apply(this.implementation,args);
-       this.notifyConfigServerOfAvailablityAndGetAddress();
-    }   
+        this.implementation.listen.apply(this.implementation, args);
+        this.notifyConfigServerOfAvailablityAndGetAddress();
+    }
 }
 
 export function MergeJsonData(start: Object, json: string): Object {
@@ -202,14 +215,16 @@ export function MergeJsonData(start: Object, json: string): Object {
     return result;
 }
 
-export function MergeObjects(output : Object, ...args: Object[]): Object {
-      for (var index = 0; index < args.length; index++) {
+export function MergeObjects(output: Object, ...args: Object[]): Object {
+    for (var index = 0; index < args.length; index++) {
         var source = args[index];
         if (source !== undefined && source !== null) {
-          Object.keys(source).forEach((key) => {            
-              output[key] = source[key];
-          });
-      return output;
+            Object.keys(source).forEach((key) => {
+                output[key] = source[key];
+            });
+        }
+    }
+    return output;
 }
 
 export function NameValues(data: string): Object {
@@ -224,4 +239,4 @@ export function NameValues(data: string): Object {
     } catch (err) { console.log('Error parsing name/value string.'); }
     return result;
 }
-
+      
