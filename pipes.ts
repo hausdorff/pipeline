@@ -209,6 +209,8 @@ export function MergeObjects(output : Object, ...args: Object[]): Object {
           Object.keys(source).forEach((key) => {            
               output[key] = source[key];
           });
+        }
+      }
       return output;
 }
 
