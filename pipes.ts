@@ -1,66 +1,120 @@
 import restify = require("restify");
 import URL = require("url");
 
-var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
+// default just takes the first node
+var defaultMap = (nodes : string[], params) => nodes[0];
+
+type requestAction = (params : any, next : () => void) => void;
+
+var configureServer =
+    (err, req, res, obj) => {
+        if (err) throw err;
+
+        Object.keys(obj).forEach((key)=>{
+            var addressMap = defaultMap;
+            try {
+                addressMap = eval('(' + obj[key].map +  ')');
+            }
+            catch (err) {}
+
+            var map = (nodes : string[], params : any) : PipelineClient => {
+                return this.clients.find(addressMap(nodes,params));
+            };
+
+            this.broker.add(key,new Stage(key, obj[key].nodes, map));
+        });
+    };
+
+
+//
+// Pipeline.
+//
 
 export class Pipeline {
+    // Only used by pipeline stages that have a restify server running
+    public restifySessions = new RestifySessionManager();
+
     public lastSessionId = 0;
-    public restifySessions = new RestifySessionManager(); // only used by pipeline stages that have a restify server running
     public clients = new ClientManager();
-    public config = new StageManager();
+    public broker = new ServiceBroker();
     public configServer : restify.Client;
-         
-    public send(stageName: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
-        var client = this.config.find(stageName).map(parameters);
-        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
-        
-        console.log('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params);
-        client.send(path, params, (err) => { 
-            throw err; 
-        });
-    }
-    
-    public sendToNode(address: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
-        var client = this.clients.find(address);
-        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
-        
-        console.log('Sending to node with address', client.url.href, 'and parameters\r\n',params)
-        client.send(path, params, (err) => { 
-            throw err; 
-        });
+
+    constructor(configurationUrl: URL.Url) {
+        this.configServer = restify.createJsonClient(
+            {url: configurationUrl.href});
+        this.loadConfiguration();
     }
 
-    public execute(stageName: string, parameters: any, code: (params : any,next : ()=>void)=> void) {
-        this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
+    // Creates a new `PipelineServer`.
+    public createServer(stageName: string) : PipelineServer {
+        return new PipelineServer(this, stageName);
     }
-    
-    public createServer(stageName: string) : PipelineServer {         
-        return new PipelineServer(this, stageName); 
+
+    // Forwards a continuation to a stage. Specifically:
+    //
+    // 1. Select a machine in a stage named `stageName`.
+    // 2. Make a REST call to the resource named `path`, forwarding
+    //    `parameters` and `code`.
+    public send(stageName: string, path: string, parameters: any,
+                code?: requestAction) {
+        // Find stage, select server from that stage to send to.
+        var client = this.broker.find(stageName).map(parameters);
+        var params = MergeObjects(
+            {},
+            parameters,
+            !code ? {} : { code: code.toString() });
+
+        console.log('Sending to', stageName, 'with address', client.url.href,
+                    'and parameters\r\n', params);
+
+        // Send.
+        client.send(path, params, (err) => { throw err; });
     }
-        
-    public loadConfiguration() {
-        this.configServer.get('/config',(err,req,res,obj) => {
-           if (err) throw err;
-           
-           Object.keys(obj).forEach((key)=>{
-               var addressMap = defaultMap;
-               try { addressMap = eval('(' + obj[key].map +  ')')} catch (err) {}
-               var map = (nodes : string[], params : any) : PipelineClient => {
-                   return this.clients.find(addressMap(nodes,params));
-               }
-               this.config.add(key,new Stage(key, obj[key].nodes, map));
-           }); 
-        });  
+
+    // Forwards a continuation to a node at `address`.
+    public sendToNode(address: string, path: string, parameters: any,
+                      code?: requestAction) {
+        // Find stage, select server from that stage to send to.
+        var client = this.clients.find(address);
+        var params = MergeObjects(
+            {},
+            parameters,
+            !code ? {} : { code: code.toString() });
+
+        console.log('Sending to node with address', client.url.href,
+                    'and parameters\r\n',params)
+
+        // Send.
+        client.send(path, params, (err) => { throw err; });
     }
-    
-    constructor(configurationUrl: URL.Url) {
-        this.configServer = restify.createJsonClient({url: configurationUrl.href});
-        this.loadConfiguration();
+
+    public execute(stageName: string, parameters: any, code: requestAction) {
+        var params = MergeObjects({}, parameters, { code: code.toString() });
+        this.broker
+            .find(stageName)
+            .map(parameters)
+            .send('/pipeline/execute', params, (err) => { throw err; });
+    }
+
+    loadConfiguration() {
+        this.configServer.get('/config', configureServer);
     }
 }
 
 export function createPipeline(configurationUrl: string): Pipeline {
     return new Pipeline(URL.parse(configurationUrl));
+}
+
+export class ClientManager {
+    public find(location: string): PipelineClient {
+        var url = URL.parse(location);
+        var clientAddress = url.protocol + '//' + url.host
+        if (!this.clients[clientAddress]) {
+            this.clients[clientAddress] = new PipelineClient(url, restify.createJsonClient({ url: clientAddress }));
+        }
+        return this.clients[clientAddress];
+    }
+    clients: { [key: string]: PipelineClient } = {};
 }
 
 export class RestifySession {
@@ -69,8 +123,9 @@ export class RestifySession {
     public next: restify.Next;
     public started: Date;
     public id: string;
-    
-    constructor(sessionId : string, request : restify.Request, response : restify.Response, next : restify.Next) {
+
+    constructor(sessionId : string, request : restify.Request,
+                response : restify.Response, next : restify.Next) {
         this.request = request;
         this.response = response;
         this.next = next;
@@ -81,11 +136,35 @@ export class RestifySession {
 
 export class RestifySessionManager {
     private curentSessionId = 0;
-    public add(request : restify.Request, response : restify.Response, next : restify.Next) {
+    sessions: { [key: string]: RestifySession } = {};
+
+    public add(request : restify.Request, response : restify.Response,
+               next : restify.Next) {
         var session = new RestifySession((this.curentSessionId++).toString(), request, response, next); 
         this.sessions[session.id] = session; return session.id; }
-    public find(sessionId: string): RestifySession { return this.sessions[sessionId]; }
-    sessions: { [key: string]: RestifySession } = {};
+
+    public find(sessionId: string): RestifySession {
+        return this.sessions[sessionId];
+    }
+}
+
+
+//
+// Stage.
+//
+
+export class Stage {
+    public name : string;
+    public nodes : string[] = [];
+    public mapper: (nodes : string[], params : Object) => PipelineClient;
+    public map(parameters: Object): PipelineClient {
+        return this.mapper(this.nodes,parameters);
+    }
+    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
+        this.name = name;
+        this.nodes = nodes;
+        this.mapper = mapper;
+    }
 }
 
 export class PipelineClient implements restify.Client {
@@ -119,33 +198,13 @@ export class PipelineClient implements restify.Client {
     public basicAuth(username: string, password: string): any { return this.implementation.basicAuth(username, password); }
 }
 
-export class ClientManager {
-    public find(location: string): PipelineClient {
-        var url = URL.parse(location);
-        var clientAddress = url.protocol + '//' + url.host
-        if (!this.clients[clientAddress]) {
-            this.clients[clientAddress] = new PipelineClient(url, restify.createJsonClient({ url: clientAddress }));
-        }
-        return this.clients[clientAddress];
-    }
-    clients: { [key: string]: PipelineClient } = {};
-}
 
-export class Stage {
-    public name : string;
-    public nodes : string[] = [];
-    public mapper: (nodes : string[], params : Object) => PipelineClient;
-    public map(parameters: Object): PipelineClient {
-        return this.mapper(this.nodes,parameters);
-    }
-    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
-        this.name = name;
-        this.nodes = nodes;
-        this.mapper = mapper;
-    }
-}
 
-export class StageManager {
+//
+// Service broker.
+//
+
+export class ServiceBroker {
     public find(name: string): Stage {
         return this.stages[name];
     }
@@ -154,6 +213,11 @@ export class StageManager {
     }
     stages: { [key: string]: Stage } = {};
 }
+
+
+//
+// Pipeline server.
+//
 
 export class PipelineServer {
     private implementation: restify.Server;
@@ -214,6 +278,11 @@ export class PipelineServer {
         this.notifyConfigServerOfAvailablityAndGetAddress();
     }
 }
+
+
+//
+// Helper functions.
+//
 
 export function MergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
