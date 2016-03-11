@@ -5,8 +5,8 @@ import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var pipelineServer1 = pipeline.createServer(pipelineConfig.processJavascriptStage);
-export var pipelineServer2 = pipeline.createServer(pipelineConfig.processJavascriptStage);
+var pipelineServer1 = pipeline.createServer(pipelineConfig.processJavascriptStage);
+var pipelineServer2 = pipeline.createServer(pipelineConfig.processJavascriptStage);
 
 function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
@@ -14,7 +14,7 @@ function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
     if (!params.code) { next(); return; }
 
-    var f = pipes.GenerateFunction(params.code as string);
+    var f = pipes.GenerateFunction(params.code);
     delete params.code;
 
     ((pipeline: pipes.Pipeline, params: any, next: () => void) => {
@@ -37,8 +37,7 @@ console.log('Process Javascript Stage listening on ' + pipelineConfig.processJav
 pipelineServer2.listen(pipelineConfig.processJavascriptPorts[1]);
 console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[1]);
 
-
-
+export var ready = true;
 
 // -------------------
 // Code gen for eval

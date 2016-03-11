@@ -16,6 +16,7 @@ import pipelineManager = require('./pipelineManager');
 pipelineManager.confirmServersReady();
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
+var restifySessions = new pipes.RestifySessionManager();
 
 // Start a vanilla restify server that send messages to a pipeline
 
@@ -24,7 +25,7 @@ var server = restify.createServer();
 function restifyServerHandler(pipeline: pipes.Pipeline, request: restify.Request, response: restify.Response, next: restify.Next) {
     console.log('Got message from client with paramaters ' + JSON.stringify(request.params));
     var operation = request.params.operation;
-    var session = pipeline.restifySessions.add(request, response, next);
+    var session = restifySessions.add(request, response, next);
 
     pipeline.send(pipelineConfig.planStoreStage,
         '/lookup/' + operation,
@@ -45,7 +46,7 @@ pipelineServer.process('/pipeline/result', (params, next) => {
     console.log("Got result ", params);
     var result = params && params["result"];
     var sessionId = params && params["session"];
-    var session = sessionId && pipeline.restifySessions.find(sessionId);
+    var session = sessionId && restifySessions.find(sessionId);
 
     if (!result || !session) { console.log('/pipeline/result called improperly'); return; }
 

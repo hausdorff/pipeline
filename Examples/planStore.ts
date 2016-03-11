@@ -3,7 +3,7 @@ import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var pipelineServer = pipeline.createServer(pipelineConfig.planStoreStage);
+var pipelineServer = pipeline.createServer(pipelineConfig.planStoreStage);
 
 pipelineServer.process('/lookup/:operation', (params, next) => {
 
@@ -35,15 +35,16 @@ pipelineServer.process('/lookup/:operation', (params, next) => {
         pipeline.send(pipelineConfig.countStoreStage, '/rest/incrementCount', pipes.MergeObjects(params, { resultName: "count" }), (ns_params, ns_next) => {
             pipeline.execute("processJavascriptStage", ns_params, (nns_params, nns_next) => {
                 var message = 'Current count is ' + nns_params.count + ' at ' + new Date(Date.now()).toLocaleString();
-                pipeline.sendToNode(nns_params["initialNode"], '/pipeline/result', pipeline.merge(nns_params,{ result: message });
+                pipeline.sendToNode(nns_params["initialNode"], '/pipeline/result', pipeline.merge(nns_params,{ result: message }));
                 nns_next();
             });
             ns_next();
         });
     }
-
     next();
 });
 
 pipelineServer.listen(pipelineConfig.planStorePorts[0]);
 console.log('PlanStore Stage listening on ' + pipelineConfig.planStorePorts[0]);
+
+export var ready = true;

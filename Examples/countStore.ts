@@ -4,7 +4,7 @@ import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var pipelineServer = pipeline.createServer('countStoreStage');
+ var pipelineServer = pipeline.createServer('countStoreStage');
 
 export var simulateDelay = true;
 var count = 0;
@@ -38,3 +38,5 @@ pipelineServer.process('/rest/:operation', (params, next) => {
 
 pipelineServer.listen(pipelineConfig.countStorePort);
 console.log('CountStore Stage listening on ' + pipelineConfig.countStorePort);
+
+export var ready = true;

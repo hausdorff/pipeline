@@ -4,12 +4,14 @@ import URL = require("url");
 var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
 
 export class Pipeline {
-    public lastSessionId = 0;
-    public restifySessions = new RestifySessionManager(); // only used by pipeline stages that have a restify server running
-    public clients = new ClientManager();
     public config = new StageManager();
-    public configServer : restify.Client;
     public merge(... args : Object[]) : Object { args.unshift({}); return MergeObjects.apply(null, args); }
+
+    public clients = new ClientManager(); 
+    public configServer : restify.Client;
+    private lastSessionId = 0;
+
+    // private restifySessions = new RestifySessionManager(); // only used by pipeline stages that have a restify server running
          
     public send(stageName: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
         var client = this.config.find(stageName).map(parameters);
