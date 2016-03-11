@@ -5,29 +5,44 @@ import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-export var pipelineServer = pipeline.createServer(pipelineConfig.processJavascriptStage);
+export var pipelineServer1 = pipeline.createServer(pipelineConfig.processJavascriptStage);
+export var pipelineServer2 = pipeline.createServer(pipelineConfig.processJavascriptStage);
 
-pipelineServer.process('/execute', (params, next) => {
-    ProcessJavascript(params);
-    next();
-});
+function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
-function ProcessJavascript(params: Object) {
-    var code = Code(params);
-    var result = null;
-    try {
-        result = eval(code);
-    } catch (err) {
-        result = err;
-    }
-    return result;
+    console.log('Got process javascript request', params);
+
+    if (!params.code) { next(); return; }
+
+    var f = pipes.GenerateFunction(params.code as string);
+    delete params.code;
+
+    ((pipeline: pipes.Pipeline, params: any, next: () => void) => {
+        f(params, next);
+    })(this.pipeline, params, next);
 }
 
-pipelineServer.listen(pipelineConfig.processJavascriptPorts[0]);
+pipelineServer1.process('/pipeline/execute', (params, next) => {
+    handler(this.pipeline, params, next);
+});
+
+pipelineServer2.process('/pipeline/execute', (params, next) => {
+    handler(this.pipeline, params, next);
+});
+
+
+pipelineServer1.listen(pipelineConfig.processJavascriptPorts[0]);
 console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
+
+pipelineServer2.listen(pipelineConfig.processJavascriptPorts[1]);
+console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[1]);
+
+
+
 
 // -------------------
 // Code gen for eval
+// All old
 
 function escape(s) {
     return s

@@ -8,31 +8,40 @@ export var pipelineServer = pipeline.createServer(pipelineConfig.planStoreStage)
 pipelineServer.process('/lookup/:operation', (params, next) => {
 
     var operation = params["operation"];
-    
+
     console.log('Got lookup operation for ', operation);
 
     if (operation == 'hello') {
-        pipeline.sendToNode(params["initialNode"], '/pipeline/result', pipes.MergeObjects(params,{ result: "Hello" }));
-    } 
-    
+        pipeline.sendToNode(params["initialNode"], '/pipeline/result', pipes.MergeObjects(params, { result: "Hello" }));
+    }
+
     else if (operation == 'counter') {
-        pipeline.send(pipelineConfig.countStoreStage, '/rest/incrementCount', pipes.MergeObjects(params,{ resultName: "result" }), (ns_params, ns_next) => {
+        pipeline.send(pipelineConfig.countStoreStage, '/rest/incrementCount', pipes.MergeObjects(params, { resultName: "result" }), (ns_params, ns_next) => {
             pipeline.sendToNode(ns_params["initialNode"], '/pipeline/result', ns_params);
-            ns_next();            
+            ns_next();
         });
     }
 
-    else if (operation == 'simpleProgram') {
-        pipeline.send(pipelineConfig.countStoreStage, '/api/incrementCount', pipes.MergeObjects(params,{ resultName: "count" }), (ns_params, ns_next) => {
-            pipeline.execute(pipelineConfig.processJavascriptStage, ns_params, (nns_params, nns_next) => {
-              var message = 'Current count is ' + nns_params.count + ' at ' + new Date(Date.now()).toLocaleString();
-              pipeline.sendToNode(nns_params["initialNode"], '/pipeline/result', pipes.MergeObjects(nns_params,{ result: message}));
-              nns_next();
+    else if (operation == 'simple') {
+        pipeline.execute(pipelineConfig.processJavascriptStage, params, (nns_params, nns_next) => {
+            var message = 'The date is ' + new Date(Date.now()).toLocaleString();
+            nns_params['result'] = message;
+            pipeline.sendToNode(nns_params['initialNode'], '/pipeline/result', nns_params);
+            nns_next();
+        });
+    }
+
+    else if (operation == 'chained') {
+        pipeline.send(pipelineConfig.countStoreStage, '/rest/incrementCount', pipes.MergeObjects(params, { resultName: "count" }), (ns_params, ns_next) => {
+            pipeline.execute("processJavascriptStage", ns_params, (nns_params, nns_next) => {
+                var message = 'Current count is ' + nns_params.count + ' at ' + new Date(Date.now()).toLocaleString();
+                pipeline.sendToNode(nns_params["initialNode"], '/pipeline/result', pipeline.merge(nns_params,{ result: message });
+                nns_next();
             });
             ns_next();
         });
     }
-    
+
     next();
 });
 

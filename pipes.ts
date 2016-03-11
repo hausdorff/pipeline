@@ -9,6 +9,7 @@ export class Pipeline {
     public clients = new ClientManager();
     public config = new StageManager();
     public configServer : restify.Client;
+    public merge(... args : Object[]) : Object { args.unshift({}); return MergeObjects.apply(null, args); }
          
     public send(stageName: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
         var client = this.config.find(stageName).map(parameters);
@@ -31,6 +32,7 @@ export class Pipeline {
     }
 
     public execute(stageName: string, parameters: any, code: (params : any,next : ()=>void)=> void) {
+        console.log('Executing to stage', stageName, 'with parameter \r\n', parameters);
         this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
     }
     
@@ -51,7 +53,7 @@ export class Pipeline {
                this.config.add(key,new Stage(key, obj[key].nodes, map));
            }); 
         });  
-    }
+    } 
     
     constructor(configurationUrl: URL.Url) {
         this.configServer = restify.createJsonClient({url: configurationUrl.href});
@@ -161,6 +163,8 @@ export class PipelineServer {
     public stageName: string;
     public myUrl: URL.Url = null;
     public port: string;
+    
+    
 
     private handleCode(code: string, params: Object, next: restify.Next) {
         if (!code) return;
@@ -170,7 +174,7 @@ export class PipelineServer {
         } catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
     }
 
-    public process(route: string, handler: (handlerParams: Object, handlerNext: () => void) => void) {
+    public process(route: string, handler: (handlerParams: any, handlerNext: () => void) => void) {
         this.implementation.post(route, (req, res, next) => {
             res.send(201);
             var code = req.params.code;
@@ -247,4 +251,15 @@ export function NameValues(data: string): Object {
     } catch (err) { console.log('Error parsing name/value string.'); }
     return result;
 }
-      
+
+export function GenerateFunction(code: string): (...args: any[]) => any {
+    var f = () => {
+        console.log("empty function");
+    }
+    if (!code) return f;
+    try {
+        f = eval('(' + code + ')');  // could consider parsing the code for paramaters and then using new Function... probably safer.
+    }
+    catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
+    return f;
+}
