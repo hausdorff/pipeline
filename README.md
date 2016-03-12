@@ -10,7 +10,7 @@ With curl or the browser you can call the server with the following requests as 
     http://localhost:8000/api/hello
     http://localhost:8000/api/counter
     http://localhost:8080/api/simple
-    http://localhost:8080/api/chained
+    http://localhost:8000/api/chained
     
 
 ### How the Example pipeline work? ###
