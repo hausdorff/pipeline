@@ -4,7 +4,7 @@
   "description": "Brainstorming on how to build request processing pipelines in Node",
   "main": "./dist/Examples/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha --recursive dist/test",
     "build": "tsc -p .",
     "watch": "tsc -p . --watch",
     "typings": "tsd install"
@@ -12,6 +12,8 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^2.4.5",
     "tsc": "^1.20150623.0",
     "tsd": "^0.6.5"
   },
