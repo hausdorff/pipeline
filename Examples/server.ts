@@ -59,3 +59,4 @@ pipelineServer.process('/pipeline/result', (params, next) => {
 pipelineServer.listen(pipelineConfig.frontdoorPort);
 console.log("Initial pipeline stage listening on " + pipelineConfig.frontdoorPort);
 
+export var ready = true;
