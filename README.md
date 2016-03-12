@@ -33,6 +33,7 @@ There are two main missing enhancements that we plan to work on next:
 2. Distributing the load to a set of managed processors using something like Mesos
 
 Other enhancements might include:
+
 3. Parallel/join operations in the computational plan. This would is simply enabling a computation to send multiple outbound messages.
 
 ### How to build and run the server ###
