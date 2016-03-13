@@ -1,5 +1,5 @@
 
-import pipes = require('../pipes');
+import pipes = require('../src/pipes');
 import pipelineConfig = require('./pipelineConfig');
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);

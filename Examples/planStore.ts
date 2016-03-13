@@ -1,4 +1,4 @@
-import pipes = require('../pipes');
+import pipes = require('../src/pipes');
 import pipelineConfig = require('./pipelineConfig');
 
 var log = require('winston');

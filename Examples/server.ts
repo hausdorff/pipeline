@@ -1,7 +1,7 @@
 import http = require('http');
 import restify = require('restify');
-import pipes = require('../pipes');
-import pipesConfigServer = require('../pipesConfigurationServer');
+import pipes = require('../src/pipes');
+import pipesConfigServer = require('../src/pipesConfigurationServer');
 import pipelineConfig = require('./pipelineConfig');
 
 var log = require('winston');
