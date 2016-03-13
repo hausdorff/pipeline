@@ -17,8 +17,10 @@ function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
     if (!params.code) { next(); return; }
 
-    var f = pipes.createFunction(params.code);
+    var f = pipes.createFunction(params.code);   
     delete params.code;
+
+    if (!f) { next(); return; }
 
     ((pipeline: pipes.Pipeline, params: any, next: () => void) => {
         f(params, next);

@@ -39,7 +39,7 @@ server.post('/api/:operation', (req, res, next) => restifyServerHandler(pipeline
 server.get('/api/:operation', (req, res, next) => restifyServerHandler(pipeline, req, res, next));
 
 server.listen(pipelineConfig.frontdoorRestPort);
-log.info("REST interface listening on " + pipelineConfig.frontdoorRestPort);
+log.info("REST interface listening on", pipelineConfig.frontdoorRestPort);
 
 // Instantiate a pipeline server that will listen on /pipeline/result and send the result to the client.
 
@@ -53,13 +53,13 @@ pipelineServer.process('/pipeline/result', (params, next) => {
 
     if (!result || !session) { log.info('/pipeline/result called improperly'); return; }
 
-    log.info('Send response to HTTP client with body ' + params["result"]);
+    log.info('Send response to HTTP client with body', params["result"]);
     session.response.send(201, params["result"]);
     session.next();
     next();
 });
 
 pipelineServer.listen(pipelineConfig.frontdoorPort);
-log.info("Initial pipeline stage listening on " + pipelineConfig.frontdoorPort);
+log.info("Initial pipeline stage listening on", pipelineConfig.frontdoorPort);
 
 export var ready = true;

@@ -179,21 +179,14 @@ export class Pipeline {
         this.configServer.get('/config', (err, req, res, obj) => {
             if (err) throw err;
 
-            Object.keys(obj).forEach(
-                key => {
-                    let addressMap = defaultMap;
-
-                    try {
-                        addressMap = eval('(' + obj[key].map +  ')');
-                    }
-                    catch (err) {}
-
-                    let map = (nodes: string[], params): PipelineClient => {
-                        return this.clients.find(addressMap(nodes, params));
-                    }
-
-                    this.broker.add(key,new Stage(key, obj[key].nodes, map));
-                });
+            Object.keys(obj).forEach(key => {
+                let addressMap = createFunction(obj[key].map);
+                if (!addressMap) { addressMap = defaultMap };
+                let map = (nodes: string[], params): PipelineClient => {
+                    return this.clients.find(addressMap(nodes, params));
+                }
+                this.broker.add(key, new Stage(key, obj[key].nodes, map));
+            });
         });
     }
 }
@@ -350,9 +343,7 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 }
 
 export function createFunction(code: string): (...args: any[]) => any {
-    var f = () => {
-        log.info("empty function");
-    }
+    var f = null;
     if (!code) return f;
     try {
         f = eval('(' + code + ')');  // could consider parsing the code for paramaters and then using new Function... probably safer.
