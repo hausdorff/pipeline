@@ -205,18 +205,23 @@ export class Pipeline {
 // Stage.
 //
 
-export class Stage {
-    public name : string;
-    public nodes : string[] = [];
-    public mapper: (nodes : string[], params : Object) => PipelineClient;
-    public map(parameters: Object): PipelineClient {
-        return this.mapper(this.nodes,parameters);
-    }
+type Mapper = (nodes: string[], params : Object) => PipelineClient;
 
-    constructor(name : string, nodes : string[], mapper: (nodes : string[], params : Object) => PipelineClient) {
-        this.name = name;
-        this.nodes = nodes;
-        this.mapper = mapper;
+export class Stage {
+    constructor(private name: string,
+                private nodes: string[],
+                private mapper: Mapper) { }
+
+    /**
+     * Selects from a set of possible nodes, and produces a `PipelineClient`
+     * for it.
+     * 
+     * @param parameters A JSON object containing a miscelleneous bag of
+     *                   properties the `mapper` could need to make its
+     *                   decision.
+     */
+    public map(parameters: Object): PipelineClient {
+        return this.mapper(this.nodes, parameters);
     }
 }
 
