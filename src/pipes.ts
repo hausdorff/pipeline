@@ -337,7 +337,7 @@ export class RestifySessionManager {
 // Helper functions.
 //
 
-export function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
+function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
     for (let index = 0; index < args.length; index++) {
         var source = args[index];
         if (source !== undefined && source !== null) {
