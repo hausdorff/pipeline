@@ -117,7 +117,7 @@ export class Pipeline {
     public send(stageName: string, path: string, parameters: any,
                 code?: Continuation) {
         // Find stage, select server from that stage to send to.
-        let client = this.broker.find(stageName).map(parameters);
+        let client = this.broker.find(stageName).mapToNode(parameters);
         let params = this.merge(
             parameters,
             !code ? {} : { code: code.toString() });
@@ -171,7 +171,7 @@ export class Pipeline {
         let params = objectAssign({}, parameters, { code: code.toString() });
         this.broker
             .find(stageName)
-            .map(parameters)
+            .mapToNode(parameters)
             .send('/pipeline/execute', params, (err) => { throw err; });
     }
 
@@ -286,7 +286,7 @@ export class Stage {
      * @return            A `PipelineClient` for the node selected by the
      *                    `mapper` function.
      */
-    public map(parameters: Object): PipelineClient {
+    public mapToNode(parameters: Object): PipelineClient {
         return this.mapper(this.nodes, parameters);
     }
 }
@@ -337,6 +337,7 @@ export class RestifySessionManager {
 // Helper functions.
 //
 
+/*
 export function mergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
     var data = {}
@@ -344,6 +345,7 @@ export function mergeJsonData(start: Object, json: string): Object {
     Object.keys(data).forEach((key) => { result[key] = data[key]; });
     return result;
 }
+*/
 
 export function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
     for (let index = 0; index < args.length; index++) {
