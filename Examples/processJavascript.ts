@@ -43,9 +43,8 @@ log.info('Process Javascript Stage listening on ' + pipelineConfig.processJavasc
 export var ready = true;
 
 /* 
-// -------------------
-// Code gen for eval
-// All old
+
+// OLD code gen helpers
 
 function escape(s) {
     return s
@@ -63,21 +62,4 @@ function stringify(s) {
     return '"' + escape(JSON.stringify(s)) + '"';
 };
 
-function CodeForParameter(key: string, value: any) {
-    return `var ${key} = JSON.parse(${stringify(value)});
-    `;
-}
-
-function Code(params) {
-    // Keeping all variables scoped to minimize any potential conflicts
-    return `(function Code() {
-        ${
-        Object.keys(params).reduce((previous, key) => {
-            return previous + ((key != "code") ? CodeForParameter(key, params[key]) : "");
-        }, "")
-        }
-        return ${ params["code"]}
-    })();
-    `;
-}
 */

@@ -224,7 +224,7 @@ export class ClientManager {
     }
 }
 
-export class PipelineClient implements restify.Client {
+export class PipelineClient /* implements restify.Client */ { // Removing implements restify.Client as this functionality not currently used.
     public url: URL.Url;
     private implementation: restify.Client;
 
@@ -239,20 +239,25 @@ export class PipelineClient implements restify.Client {
             if (err) { log.info('Error sending to ', path); throw 'Send error'; }
             if (res.statusCode == 201) {
                 log.info('Request complete for', this.url.href, path);
-                // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
+                // very important - do nothing... the response will be sent back via the pipeline.  This is just acknowlegement that the next stage got the request.  
             } else {
                 log.info('not sure why we are here in send');
             }
         });
     }
 
-    // For fexiblity also passes through to the resitify client implementation
+    private post(path: string, object: any, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { 
+        return this.implementation.post(path, object, callback); 
+    }
+    
+    /* Flexibility to operate as a restify.Client is not needed currently so disabling.   
+    // For fexiblity PipelineClient can act as a resitify client
     public get(path: string, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.get(path, callback); }
     public head(path: string, callback?: (err: any, req: restify.Request, res: restify.Response) => any): any { return this.implementation.head(path, callback); }
-    public post(path: string, object: any, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.post(path, object, callback); }
     public put(path: string, object: any, callback?: (err: any, req: restify.Request, res: restify.Response, obj: any) => any): any { return this.implementation.put(path, object, callback); }
     public del(path: string, callback?: (err: any, req: restify.Request, res: restify.Response) => any): any { return this.implementation.del(path, callback); }
     public basicAuth(username: string, password: string): any { return this.implementation.basicAuth(username, password); }
+    */
 }
 
 export function createPipeline(configurationUrl: string): Pipeline {
@@ -340,7 +345,7 @@ export function mergeJsonData(start: Object, json: string): Object {
     return result;
 }
 
-export function objectAssign(output: Object, ...args: Object[]): Object {  // 'polyfill for ES6 object.assign
+export function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
     for (let index = 0; index < args.length; index++) {
         var source = args[index];
         if (source !== undefined && source !== null) {
@@ -351,21 +356,6 @@ export function objectAssign(output: Object, ...args: Object[]): Object {  // 'p
     }
     return output;
 }
-
-/* OLD BROWSER FUNCTIONALITY
-export function nameValues(data: string): Object {
-    var result = {};
-    try {
-        result = data.split('&')
-            .map((kv) => kv.split('='))
-            .reduce((r, kvp) => {
-                if (kvp[0]) r[kvp[0]] = !kvp[1] ? true : kvp[1];
-                return r;
-            }, {});
-    } catch (err) { log.info('Error parsing name/value string.'); }
-    return result;
-}
-*/
 
 export function createFunction(code: string): (...args: any[]) => any {
     var f = () => {
