@@ -83,15 +83,32 @@ export class PipelineServer {
 // Pipeline.
 //
 
+/**
+ * Brokers the interaction between a set of stages, which collectively form a
+ * "pipeline" that is meant to process some request. The topology of the
+ * network is completely up to the user: the stages can be organized into a
+ * series of stages executing one after another, or they can form complex
+ * cyclical graphs.
+ */
 export class Pipeline {
     public broker = new ServiceBroker();
 
     public clients = new ClientManager();
     public configServer: restify.Client;
 
-    constructor(configurationUrl: URL.Url) {
+    /**
+     * Instantiates a Pipeline. The configuration server found at the URL
+     * supplied to this constructor will allow this Pipeline to discover the
+     * things it needs to broker messages passed between stages: information
+     * like the names of the stages, and the stage-specific "mapping" function
+     * that allows other stages to select a machine from a stage to send
+     * messages to.
+     * 
+     * @param configurationServer The URL of the pipeline configuration server.
+     */
+    constructor(configurationServer: URL.Url) {
         this.configServer = restify.createJsonClient(
-            {url: configurationUrl.href});
+            {url: configurationServer.href});
         this.loadConfiguration();
     }
 
