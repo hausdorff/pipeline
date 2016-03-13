@@ -15,8 +15,8 @@ if (pipesConfigServer.server) {
     throw 'Configuration server not available.';
 }
 
-import pipelineManager = require('./pipelineManager');
-pipelineManager.confirmServersReady();
+import startPipeline = require('./startPipeline');
+if (!startPipeline.ready()) { throw 'Pipeline is not ready'; }
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 var restifySessions = new pipes.RestifySessionManager();

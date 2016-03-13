@@ -9,7 +9,7 @@ import planStore = require('./planStore');
 import countStore = require('./countStore');
 import processorJavascript = require('./processJavascript');
 
-export function confirmServersReady() : boolean {
+export function ready() : boolean {
     var ready = (planStore.ready && countStore.ready && processorJavascript.ready) ? true : false;
     log.info('Pipeline ready = ' + ready);
     return ready;
