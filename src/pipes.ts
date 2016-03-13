@@ -86,7 +86,7 @@ export class PipelineServer {
 export class Pipeline {
     public broker = new ServiceBroker();
 
-    public clients = new ClientManager(); 
+    public clients = new ClientManager();
     public configServer: restify.Client;
     private lastSessionId = 0;
 
@@ -98,7 +98,7 @@ export class Pipeline {
 
     public merge(... args : Object[]) : Object {
         args.unshift({});
-        return MergeObjects.apply(null, args);
+        return mergeObjects.apply(null, args);
     }
 
     public createServer(stageName: string) : PipelineServer {
@@ -119,7 +119,7 @@ export class Pipeline {
                 code?: Continuation) {
         // Find stage, select server from that stage to send to.
         let client = this.broker.find(stageName).map(parameters);
-        let params = MergeObjects(
+        let params = mergeObjects(
             {},
             parameters,
             !code ? {} : { code: code.toString() });
@@ -146,7 +146,7 @@ export class Pipeline {
                       code?: Continuation) {
         // Find stage, select server from that stage to send to.
         let client = this.clients.find(address);
-        let params = MergeObjects(
+        let params = mergeObjects(
             {},
             parameters,
             !code ? {} : { code: code.toString() });
@@ -171,7 +171,7 @@ export class Pipeline {
         log.info('Executing to stage', stageName, 'with parameter \r\n',
                  parameters);
 
-        let params = MergeObjects({}, parameters, { code: code.toString() });
+        let params = mergeObjects({}, parameters, { code: code.toString() });
         this.broker
             .find(stageName)
             .map(parameters)
@@ -320,7 +320,7 @@ export class RestifySessionManager {
 // Helper functions.
 //
 
-export function MergeJsonData(start: Object, json: string): Object {
+export function mergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
     var data = {}
     try { data = JSON.parse(json) } catch (err) { log.info('Error parsing json data'); }
@@ -328,7 +328,7 @@ export function MergeJsonData(start: Object, json: string): Object {
     return result;
 }
 
-export function MergeObjects(output: Object, ...args: Object[]): Object {
+export function mergeObjects(output: Object, ...args: Object[]): Object {
     for (var index = 0; index < args.length; index++) {
         var source = args[index];
         if (source !== undefined && source !== null) {
@@ -340,7 +340,7 @@ export function MergeObjects(output: Object, ...args: Object[]): Object {
     return output;
 }
 
-export function NameValues(data: string): Object {
+export function nameValues(data: string): Object {
     var result = {};
     try {
         result = data.split('&')
@@ -353,7 +353,7 @@ export function NameValues(data: string): Object {
     return result;
 }
 
-export function GenerateFunction(code: string): (...args: any[]) => any {
+export function generateFunction(code: string): (...args: any[]) => any {
     var f = () => {
         log.info("empty function");
     }

@@ -17,7 +17,7 @@ function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
     if (!params.code) { next(); return; }
 
-    var f = pipes.GenerateFunction(params.code);
+    var f = pipes.generateFunction(params.code);
     delete params.code;
 
     ((pipeline: pipes.Pipeline, params: any, next: () => void) => {
