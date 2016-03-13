@@ -200,48 +200,6 @@ export class Pipeline {
     }
 }
 
-
-//
-// Stage.
-//
-
-type Mapper = (nodes: string[], params : Object) => PipelineClient;
-
-export class Stage {
-    constructor(private name: string,
-                private nodes: string[],
-                private mapper: Mapper) { }
-
-    /**
-     * Selects from a set of possible nodes, and produces a `PipelineClient`
-     * for it.
-     * 
-     * @param parameters A JSON object containing a miscelleneous bag of
-     *                   properties the `mapper` could need to make its
-     *                   decision.
-     */
-    public map(parameters: Object): PipelineClient {
-        return this.mapper(this.nodes, parameters);
-    }
-}
-
-
-//
-// Service broker.
-//
-
-export class ServiceBroker {
-    stages: { [key: string]: Stage } = {};
-
-    public find(name: string): Stage {
-        return this.stages[name];
-    }
-
-    public add(name: string, stage: Stage) {
-        this.stages[name] = stage;
-    }
-}
-
 export class ClientManager {
     clients: { [key: string]: PipelineClient } = {};
 
@@ -288,6 +246,48 @@ export class PipelineClient implements restify.Client {
 
 export function createPipeline(configurationUrl: string): Pipeline {
     return new Pipeline(URL.parse(configurationUrl));
+}
+
+
+//
+// Stage.
+//
+
+type Mapper = (nodes: string[], params : Object) => PipelineClient;
+
+export class Stage {
+    constructor(private name: string,
+                private nodes: string[],
+                private mapper: Mapper) { }
+
+    /**
+     * Selects from a set of possible nodes, and produces a `PipelineClient`
+     * for it.
+     * 
+     * @param parameters A JSON object containing a miscelleneous bag of
+     *                   properties the `mapper` could need to make its
+     *                   decision.
+     */
+    public map(parameters: Object): PipelineClient {
+        return this.mapper(this.nodes, parameters);
+    }
+}
+
+
+//
+// Service broker.
+//
+
+export class ServiceBroker {
+    stages: { [key: string]: Stage } = {};
+
+    public find(name: string): Stage {
+        return this.stages[name];
+    }
+
+    public add(name: string, stage: Stage) {
+        this.stages[name] = stage;
+    }
 }
 
 
