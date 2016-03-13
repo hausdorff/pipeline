@@ -17,19 +17,86 @@ type Continuation = (params: any, next: () => void) => void;
 // Pipeline Server.
 //
 
+type PipelineRequestHandler = (handlerParams: any, handlerNext: () => void) => void;
+
+/**
+ * The unit of work in a pipeline: this server executes continuations that are
+ * passed to it. You can bind different continuations to different URI
+ * resources, so that a resource like `/pipeline/:operation` can have its own
+ * continuation processing logic, apart from other resources.
+ */
 export class PipelineServer {
-    private implementation: restify.Server;
-    private pipeline: Pipeline;
-    public stageName: string;
     public myUrl: URL.Url = null;
     public port: string;
 
-    constructor(pipeline: Pipeline, stageName: string) {
-        this.pipeline = pipeline;
-        this.stageName = stageName;
-        var serverOptions = {};
+    private implementation: restify.Server;
+
+    constructor(private pipeline: Pipeline,
+                public stageName: string) {
+        let serverOptions = {};
         this.implementation = restify.createServer(serverOptions);
         this.implementation.use(restify.bodyParser({ mapParams: true }));
+    }
+
+    /**
+     * Binds a URI resource `route` (e.g., `/pipeline/:operation`) to be
+     * processed with a request `handler`. The `handler` is responsible for
+     * processing continuations that are passed to it.
+     * 
+     * @param route   A resource to bind the request handler to. ex:
+     *                `/pipeline/:operation`
+     * @param handler Processes continuations send to the `route`.
+     */
+    public process(route: string, handler: PipelineRequestHandler) {
+        this.implementation.post(
+            route,
+            (req, res, next) => {
+                res.send(201);
+                let code = req.params.code;
+                let params = req.params;
+                delete params.code;
+                handler(
+                    params,
+                    () => { 
+                        if (code) { this.handleCode(code, params, next); }
+                        else { next(); }
+                    });
+            });
+
+        this.implementation.get(
+            route,
+            (req, res, next) => {
+                let code = req.params.code;
+                let params = req.params;
+                delete params.code;
+                handler(
+                    params,
+                    () => {
+                        if (code) { this.handleCode(code, params, next); }
+                        else { next(); }
+                    });
+            });
+    }
+
+    /**
+     * Cause the server to start listening for continuations to process.
+     * 
+     * @param args The arguments passed to the underlying server
+     *             implementation. Often something like:
+     *             `pipelineServer.listen(yourPortHere)`.
+     */
+    public listen(...args: any[]) {
+        this.port = args[0];
+        this.implementation.listen.apply(this.implementation, args);
+        this.notifyConfigServerOfAvailablityAndGetAddress();
+    }
+
+    private notifyConfigServerOfAvailablityAndGetAddress() {
+        this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage: this.stageName, port: this.port }, (err, req, res, obj) => {
+            if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
+            log.info('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
+            this.myUrl = URL.parse(obj.address);
+        });
     }
 
     private handleCode(code: string, params: Object, next: restify.Next) {
@@ -38,43 +105,6 @@ export class PipelineServer {
             var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
             f(this.pipeline, params, next);
         } catch (err) { log.info('Could not eval ', code); throw 'Code evaluation error'; }
-    }
-
-    public process(route: string, handler: (handlerParams: any, handlerNext: () => void) => void) {
-        this.implementation.post(route, (req, res, next) => {
-            res.send(201);
-            var code = req.params.code;
-            var params = req.params;
-            delete params.code;
-            handler(params, () => { 
-                if (code) { this.handleCode(code, params, next); }
-                else { next(); }
-            });
-        });
-
-        this.implementation.get(route, (req, res, next) => {
-            var code = req.params.code;
-            var params = req.params;
-            delete params.code;
-            handler(params, () => { 
-                if (code) { this.handleCode(code, params, next); }
-                else { next(); }
-            });
-        });
-    }
-
-    public notifyConfigServerOfAvailablityAndGetAddress() {
-        this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage: this.stageName, port: this.port }, (err, req, res, obj) => {
-            if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
-            log.info('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
-            this.myUrl = URL.parse(obj.address);
-        });
-    }
-
-    public listen(...args: any[]) {
-        this.port = args[0];
-        this.implementation.listen.apply(this.implementation, args);
-        this.notifyConfigServerOfAvailablityAndGetAddress();
     }
 }
 
