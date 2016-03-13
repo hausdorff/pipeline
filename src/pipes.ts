@@ -14,7 +14,7 @@ var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes t
 type Continuation = (params: any, next: () => void) => void;
 
 //
-// Pipeline server.
+// Pipeline Server.
 //
 
 export class PipelineServer {
@@ -310,9 +310,9 @@ export class ServiceBroker {
 
 
 //
-// RestifySesionManager
+// Restify Sesion Manager.
 //
-// Used by front end restify servers to help when computation is done by a pipeline
+// Used by front end restify servers to help when computation is handled by forwarding to a pipeline.
 //
 
 export class RestifySession {
@@ -336,16 +336,6 @@ export class RestifySessionManager {
 //
 // Helper functions.
 //
-
-/*
-export function mergeJsonData(start: Object, json: string): Object {
-    var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
-    var data = {}
-    try { data = JSON.parse(json) } catch (err) { log.info('Error parsing json data'); }
-    Object.keys(data).forEach((key) => { result[key] = data[key]; });
-    return result;
-}
-*/
 
 export function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
     for (let index = 0; index < args.length; index++) {

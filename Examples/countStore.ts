@@ -2,6 +2,9 @@
 import pipes = require('../src/pipes');
 import pipelineConfig = require('./pipelineConfig');
 
+var log = require('winston');
+log.level = 'error';
+
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
  var pipelineServer = pipeline.createServer('countStoreStage');
@@ -37,6 +40,6 @@ pipelineServer.process('/rest/:operation', (params, next) => {
 
 
 pipelineServer.listen(pipelineConfig.countStorePort);
-console.log('CountStore Stage listening on ' + pipelineConfig.countStorePort);
+log.info('CountStore Stage listening on ' + pipelineConfig.countStorePort);
 
 export var ready = true;
