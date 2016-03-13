@@ -20,13 +20,15 @@ function DoIncrementCount(params) {
 // that we're defining in this file.
 // ----------------------------------------------------------------------------
 
-
+/**
+ * Increment a count held on the server, possibly simulating a delay.
+ */
 function incrementCount(params, next) {
-    var resultName = params['resultName'].toString();
+    let resultName = params['resultName'].toString();
     params[resultName] = DoIncrementCount(params);
 
     if (simulateDelay) {
-        var delay = Math.floor(Math.random() * 100);
+        let delay = Math.floor(Math.random() * 100);
 
         log.info("Simulating long-running count store pipeline stage " +
                     "with delay of " + delay + "ms for session " +

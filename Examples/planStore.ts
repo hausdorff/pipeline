@@ -33,6 +33,7 @@ function processCounter(params, next) {
         '/rest/incrementCount',
         pipeline.merge(params, { resultName: "result" }),
         (ns_params, ns_next) => {
+            // Send count back to initial node.
             pipeline.sendToNode(
                 ns_params["initialNode"],
                 '/pipeline/result',
@@ -51,8 +52,11 @@ function processSimpleJavaScript(params, next) {
         "processJavascriptStage",
         params,
         (nns_params, nns_next) => {
-            var message = 'The date is ' +
+            // Calculate date.
+            let message = 'The date is ' +
                 new Date(Date.now()).toLocaleString();
+
+            // Send result to initial node.
             pipeline.sendToNode(
                 nns_params['initialNode'],
                 '/pipeline/result',
@@ -73,12 +77,16 @@ function processChained(params, next) {
         '/rest/incrementCount',
         pipeline.merge(params, { resultName: "count" }),
         (ns_params, ns_next) => {
+            // Send results of the increment to the JavaScript processing stage.
             pipeline.execute(
                 "processJavascriptStage",
                 ns_params,
                 (nns_params, nns_next) => {
-                    var message = 'Current count is ' + nns_params.count +
+                    // Calculate date, retrieve count.
+                    let message = 'Current count is ' + nns_params.count +
                         ' at ' + new Date(Date.now()).toLocaleString();
+
+                    // Send those results to initial node.
                     pipeline.sendToNode(
                         nns_params["initialNode"],
                         '/pipeline/result',
@@ -96,7 +104,7 @@ function processChained(params, next) {
 // The processing logic for the different stages. We feed this to the
 // `PipelineServer` so that it knows what to do with a request.
 function processHandler(params: any, next: ()=>void) {
-    var operation = params["operation"];
+    let operation = params["operation"];
 
     log.info('Got lookup operation for ', operation);
 
