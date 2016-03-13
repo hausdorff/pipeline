@@ -4,8 +4,14 @@ import URL = require("url");
 var log = require('winston');
 log.level = 'error';
 
+
+//
+// Common.
+//
+
 var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
 
+type Continuation = (params: any, next: () => void) => void;
 
 //
 // Pipeline server.
@@ -78,65 +84,120 @@ export class PipelineServer {
 //
 
 export class Pipeline {
-    public config = new ServiceBroker();
+    public broker = new ServiceBroker();
 
     public clients = new ClientManager(); 
-    public configServer : restify.Client;
+    public configServer: restify.Client;
     private lastSessionId = 0;
 
-    // private restifySessions = new RestifySessionManager(); // only used by pipeline stages that have a restify server running
-
     constructor(configurationUrl: URL.Url) {
-        this.configServer = restify.createJsonClient({url: configurationUrl.href});
+        this.configServer = restify.createJsonClient(
+            {url: configurationUrl.href});
         this.loadConfiguration();
     }
 
-    public merge(... args : Object[]) : Object { args.unshift({}); return MergeObjects.apply(null, args); }
-
-    public send(stageName: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
-        var client = this.config.find(stageName).map(parameters);
-        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
-
-        log.info('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params);
-        client.send(path, params, (err) => { 
-            throw err; 
-        });
+    public merge(... args : Object[]) : Object {
+        args.unshift({});
+        return MergeObjects.apply(null, args);
     }
 
-    public sendToNode(address: string, path: string, parameters: any, code? : (params : any,next : ()=>void)=> void) {
-        var client = this.clients.find(address);
-        var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
-
-        log.info('Sending to node with address', client.url.href, 'and parameters\r\n',params)
-        client.send(path, params, (err) => { 
-            throw err; 
-        });
-    }
-
-    public execute(stageName: string, parameters: any, code: (params : any,next : ()=>void)=> void) {
-        log.info('Executing to stage', stageName, 'with parameter \r\n', parameters);
-        this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
-    }
-
-    public createServer(stageName: string) : PipelineServer {         
+    public createServer(stageName: string) : PipelineServer {
         return new PipelineServer(this, stageName); 
     }
 
-    public loadConfiguration() {
-        this.configServer.get('/config',(err,req,res,obj) => {
-           if (err) throw err;
-           
-           Object.keys(obj).forEach((key)=>{
-               var addressMap = defaultMap;
-               try { addressMap = eval('(' + obj[key].map +  ')')} catch (err) {}
-               var map = (nodes : string[], params : any) : PipelineClient => {
-                   return this.clients.find(addressMap(nodes,params));
-               }
-               this.config.add(key,new Stage(key, obj[key].nodes, map));
-           }); 
-        });  
-    } 
+    /**
+     * Forward a continuation to a stage, `stageName`.
+     * 
+     * @param stageName  The id of the stage to send the continuation to.
+     * @param path       The REST resource we will send the continuation to. For
+     *                   example, `/pipeline/hello` might expect to recieve a
+     *                   continuation that writes "Hello world!" to console.
+     * @param parameters The parameters to invoke the continuation with.
+     * @param code       The continuation to execute.
+     */
+    public send(stageName: string, path: string, parameters: any,
+                code?: Continuation) {
+        // Find stage, select server from that stage to send to.
+        let client = this.broker.find(stageName).map(parameters);
+        let params = MergeObjects(
+            {},
+            parameters,
+            !code ? {} : { code: code.toString() });
 
+        log.info('Sending to', stageName, 'with address', client.url.href,
+                 'and parameters\r\n', params);
+
+        // Send.
+        client.send(path, params, (err) => { throw err; });
+    }
+
+    /**
+     * Forward a continuation to a node at a specific `address`.
+     * 
+     * @param stageName  The address of the stage to send the continuation to.
+     *                   For example, an IP address, or a domain name.
+     * @param path       The REST resource we will send the continuation to. For
+     *                   example, `/pipeline/hello` might expect to recieve a
+     *                   continuation that writes "Hello world!" to console.
+     * @param parameters The parameters to invoke the continuation with.
+     * @param code       The continuation to execute.
+     */
+    public sendToNode(address: string, path: string, parameters: any,
+                      code?: Continuation) {
+        // Find stage, select server from that stage to send to.
+        let client = this.clients.find(address);
+        let params = MergeObjects(
+            {},
+            parameters,
+            !code ? {} : { code: code.toString() });
+
+        log.info('Sending to node with address', client.url.href,
+                 'and parameters\r\n',params);
+
+        // Send.
+        client.send(path, params, (err) => { throw err; });
+    }
+
+    /**
+     * Forward a continuation to a stage, `stageName`; send the request to the
+     * `/pipeline/execute` resource.
+     * 
+     * @param stageName  The address of the stage to send the continuation to.
+     *                   For example, an IP address, or a domain name.
+     * @param parameters The parameters to invoke the continuation with.
+     * @param code       The continuation to execute.
+     */
+    public execute(stageName: string, parameters: any, code: Continuation) {
+        log.info('Executing to stage', stageName, 'with parameter \r\n',
+                 parameters);
+
+        let params = MergeObjects({}, parameters, { code: code.toString() });
+        this.broker
+            .find(stageName)
+            .map(parameters)
+            .send('/pipeline/execute', params, (err) => { throw err; });
+    }
+
+    private loadConfiguration() {
+        this.configServer.get('/config', (err, req, res, obj) => {
+            if (err) throw err;
+
+            Object.keys(obj).forEach(
+                key => {
+                    let addressMap = defaultMap;
+                    try {
+                        addressMap = eval('(' + obj[key].map +  ')');
+                    }
+                    catch (err) {}
+
+                    let map = (nodes: string[], params): PipelineClient => {
+                        return this.clients.find(addressMap(nodes,params));
+                    }
+
+                    this.broker.add(key,new Stage(key, obj[key].nodes, map));
+                });
+        });
+    }
 }
 
 
