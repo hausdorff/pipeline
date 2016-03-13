@@ -3,7 +3,7 @@ node_js:
   - stable
   
 notifications:
-  slack: shew:RhmgMQ3PGUV9ti77Un6jOc5U
+  slack: mesos-core:5nm58ArI27XVLD4jjkNQs7Y6
   
 before_script: 
   - "npm run typings"
