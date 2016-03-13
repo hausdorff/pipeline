@@ -1,6 +1,9 @@
 import restify = require("restify");
 import URL = require("url");
 
+var log = require('winston');
+log.level = 'error';
+
 var defaultMap = (nodes : string[], params) => nodes[0]; // default just takes the first node
 
 export class Pipeline {
@@ -17,7 +20,7 @@ export class Pipeline {
         var client = this.config.find(stageName).map(parameters);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
-        console.log('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params);
+        log.info('Sending to', stageName, 'with address', client.url.href, 'and parameters\r\n', params);
         client.send(path, params, (err) => { 
             throw err; 
         });
@@ -27,14 +30,14 @@ export class Pipeline {
         var client = this.clients.find(address);
         var params = MergeObjects({}, parameters, !code ? {} : { code: code.toString() });
         
-        console.log('Sending to node with address', client.url.href, 'and parameters\r\n',params)
+        log.info('Sending to node with address', client.url.href, 'and parameters\r\n',params)
         client.send(path, params, (err) => { 
             throw err; 
         });
     }
 
     public execute(stageName: string, parameters: any, code: (params : any,next : ()=>void)=> void) {
-        console.log('Executing to stage', stageName, 'with parameter \r\n', parameters);
+        log.info('Executing to stage', stageName, 'with parameter \r\n', parameters);
         this.config.find(stageName).map(parameters).send('/pipeline/execute', MergeObjects({}, parameters, { code: code.toString() }), (err) => { throw err; });
     }
     
@@ -99,12 +102,12 @@ export class PipelineClient implements restify.Client {
     public send(path: string, parameters: Object, error: (any) => void) {
         // Forward message on to the next stage  with additional params including the session and return address
         this.post(path, parameters, (err, req, res, obj) => {
-            if (err) { console.log('Error sending to ', path); throw 'Send error'; }
+            if (err) { log.info('Error sending to ', path); throw 'Send error'; }
             if (res.statusCode == 201) {
-                console.log('Request complete for', this.url.href, path);
+                log.info('Request complete for', this.url.href, path);
                 // very important - do nothing... the response will be sent back via the pipeline.  This us just acknowlegement that the next stage got the request.  
             } else {
-                console.log('not sure why we are here in send');
+                log.info('not sure why we are here in send');
             }
         });
     }
@@ -173,7 +176,7 @@ export class PipelineServer {
         try {
             var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
             f(this.pipeline, params, next);
-        } catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
+        } catch (err) { log.info('Could not eval ', code); throw 'Code evaluation error'; }
     }
 
     public process(route: string, handler: (handlerParams: any, handlerNext: () => void) => void) {
@@ -209,7 +212,7 @@ export class PipelineServer {
     public notifyConfigServerOfAvailablityAndGetAddress() {
         this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage: this.stageName, port: this.port }, (err, req, res, obj) => {
             if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
-            console.log('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
+            log.info('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
             this.myUrl = URL.parse(obj.address);
         });
     }
@@ -224,7 +227,7 @@ export class PipelineServer {
 export function MergeJsonData(start: Object, json: string): Object {
     var result = Object.keys(start).reduce((previous, key) => { previous[key] = start[key]; return previous }, {});
     var data = {}
-    try { data = JSON.parse(json) } catch (err) { console.log('Error parsing json data'); }
+    try { data = JSON.parse(json) } catch (err) { log.info('Error parsing json data'); }
     Object.keys(data).forEach((key) => { result[key] = data[key]; });
     return result;
 }
@@ -250,18 +253,18 @@ export function NameValues(data: string): Object {
                 if (kvp[0]) r[kvp[0]] = !kvp[1] ? true : kvp[1];
                 return r;
             }, {});
-    } catch (err) { console.log('Error parsing name/value string.'); }
+    } catch (err) { log.info('Error parsing name/value string.'); }
     return result;
 }
 
 export function GenerateFunction(code: string): (...args: any[]) => any {
     var f = () => {
-        console.log("empty function");
+        log.info("empty function");
     }
     if (!code) return f;
     try {
         f = eval('(' + code + ')');  // could consider parsing the code for paramaters and then using new Function... probably safer.
     }
-    catch (err) { console.log('Could not eval ', code); throw 'Code evaluation error'; }
+    catch (err) { log.info('Could not eval ', code); throw 'Code evaluation error'; }
     return f;
 }

@@ -2,6 +2,9 @@
 import restify = require("restify");
 import url = require('url');
 
+var log = require('winston');
+log.level = 'error';
+
 export var server = restify.createServer();
 
 server.use(restify.bodyParser({mapParams: true}));
@@ -13,8 +16,8 @@ server.get('/config', (req, res, next) => {
 
 server.put('/config', (req, res, next) => {
     config = req.params;
-    console.log('Configuration set');
-    console.log(config);
+    log.info('Configuration set');
+    log.info(config);
     res.send(201);
     next();
 });
@@ -26,7 +29,7 @@ server.post('/stages/:stage/nodeReady', (req, res, next) => {
     address.port = req.params.port;
     delete address.host;
     delete address.href;    
-    console.log(stage + ' node ready at ' + url.format(address));
+    log.info(stage + ' node ready at ' + url.format(address));
     var stageConfig = config[stage] ? config[stage] : config[stage] = { nodes: [], map: null };
     // stageConfig.nodes.push(address);
     res.send(201, { address: url.format(address) });
@@ -35,7 +38,7 @@ server.post('/stages/:stage/nodeReady', (req, res, next) => {
 
 export function listen(port : any) {
     server.listen(port);
-    console.log('Configuration server listening on ' + port);    
+    log.info('Configuration server listening on ' + port);    
 }
 
 
