@@ -2,7 +2,7 @@ language: node_js
 node_js:
   - stable
   
-after_install : 
+before_script: 
   - "npm run typings"
   - "npm run build"
-   
+  
