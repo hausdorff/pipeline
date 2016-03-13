@@ -7,6 +7,92 @@ log.level = 'error';
 // Create a pipeline, configure with the canoncial config server URL.
 let pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
+// ----------------------------------------------------------------------------
+// Application logic. The functions that will be called on the "planning" stage
+// that we're defining in this file.
+// ----------------------------------------------------------------------------
+
+/**
+ * Send a "hello" message back to the initial server that called us.
+ */
+function processHello(params, next) {
+    pipeline.sendToNode(
+        params["initialNode"],
+        '/pipeline/result',
+        pipeline.merge(params, { result: "Hello" }));
+}
+
+/**
+ * Send a message to the stage that increments a count, with a continuation
+ * that will tell that stage to forward the message back // to the node that
+ * sent us the original message.
+ */
+function processCounter(params, next) {
+    pipeline.send(
+        pipelineConfig.countStoreStage,
+        '/rest/incrementCount',
+        pipeline.merge(params, { resultName: "result" }),
+        (ns_params, ns_next) => {
+            pipeline.sendToNode(
+                ns_params["initialNode"],
+                '/pipeline/result',
+                ns_params);
+            ns_next();
+        });
+}
+
+/**
+ * Send a continuation to the "JS processing stage", passing a continuation
+ * that will calculate the date, and then have that stage send that date back
+ * to the original node that sent us the request.
+ */
+function processSimpleJavaScript(params, next) {
+    pipeline.execute(
+        "processJavascriptStage",
+        params,
+        (nns_params, nns_next) => {
+            var message = 'The date is ' +
+                new Date(Date.now()).toLocaleString();
+            pipeline.sendToNode(
+                nns_params['initialNode'],
+                '/pipeline/result',
+                pipeline.merge(nns_params,{ result: message }));
+            nns_next();
+        });
+}
+
+/**
+ * Send a message to the count-incrementing stage, with a continuation that
+ * will forward a request to the JS execution stage, that will print the date
+ * and the incremented count, and send that back to the original node that sent
+ * us the request.
+ */
+function processChained(params, next) {
+    pipeline.send(
+        pipelineConfig.countStoreStage,
+        '/rest/incrementCount',
+        pipeline.merge(params, { resultName: "count" }),
+        (ns_params, ns_next) => {
+            pipeline.execute(
+                "processJavascriptStage",
+                ns_params,
+                (nns_params, nns_next) => {
+                    var message = 'Current count is ' + nns_params.count +
+                        ' at ' + new Date(Date.now()).toLocaleString();
+                    pipeline.sendToNode(
+                        nns_params["initialNode"],
+                        '/pipeline/result',
+                        pipeline.merge(nns_params, { result: message }));
+                    nns_next();
+                });
+            ns_next();
+        });
+}
+
+// ----------------------------------------------------------------------------
+// Set up and start the pipeline server.
+// ----------------------------------------------------------------------------
+
 // The processing logic for the different stages. We feed this to the
 // `PipelineServer` so that it knows what to do with a request.
 function processHandler(params: any, next: ()=>void) {
@@ -14,76 +100,21 @@ function processHandler(params: any, next: ()=>void) {
 
     log.info('Got lookup operation for ', operation);
 
-    // Resouce '/lookup/hello'.
     if (operation == 'hello') {
-        // Send a "hello" message back to the initial server that called us.
-        pipeline.sendToNode(
-            params["initialNode"],
-            '/pipeline/result',
-            pipeline.merge(params, { result: "Hello" }));
+        // Resouce '/lookup/hello'.
+        processHello(params, next);
     }
-
-    // Resource '/lookup/counter'.
     else if (operation == 'counter') {
-        // Send a message to the stage that increments a count, with a
-        // continuation that will tell that stage to forward the message back // to the node that sent us the original message.
-        pipeline.send(
-            pipelineConfig.countStoreStage,
-            '/rest/incrementCount',
-            pipeline.merge(params, { resultName: "result" }),
-            (ns_params, ns_next) => {
-                pipeline.sendToNode(
-                    ns_params["initialNode"],
-                    '/pipeline/result',
-                    ns_params);
-                ns_next();
-            });
+        // Resource '/lookup/counter'.
+        processCounter(params, next);
     }
-
-    // Resource '/lookup/counter'.
     else if (operation == 'simple') {
-        // Send a continuation to the "JS processing stage", passing a
-        // continuation that will calculate the date, and then have that stage
-        // send that date back to the original node that sent us the request.
-        pipeline.execute(
-            "processJavascriptStage",
-            params,
-            (nns_params, nns_next) => {
-                var message = 'The date is ' +
-                    new Date(Date.now()).toLocaleString();
-                pipeline.sendToNode(
-                    nns_params['initialNode'],
-                    '/pipeline/result',
-                    pipeline.merge(nns_params,{ result: message }));
-                nns_next();
-            });
+        // Resource '/lookup/counter'.
+        processSimpleJavaScript(params, next);
     }
-
-    // Resource '/lookup/chained'.
     else if (operation == 'chained') {
-        // Send a message to the count-incrementing stage, with a continuation
-        // that will forward a request to the JS execution stage, that will
-        // print the date and the incremented count, and send that back to the
-        // original node that sent us the request.
-        pipeline.send(
-            pipelineConfig.countStoreStage,
-            '/rest/incrementCount',
-            pipeline.merge(params, { resultName: "count" }),
-            (ns_params, ns_next) => {
-                pipeline.execute(
-                    "processJavascriptStage",
-                    ns_params,
-                    (nns_params, nns_next) => {
-                        var message = 'Current count is ' + nns_params.count +
-                            ' at ' + new Date(Date.now()).toLocaleString();
-                        pipeline.sendToNode(
-                            nns_params["initialNode"],
-                            '/pipeline/result',
-                            pipeline.merge(nns_params, { result: message }));
-                        nns_next();
-                    });
-                ns_next();
-            });
+        // Resource '/lookup/chained'.
+        processChained(params, next);
     }
     next();
 }

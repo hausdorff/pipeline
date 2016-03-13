@@ -15,36 +15,50 @@ function DoIncrementCount(params) {
     return count;
 }
 
-function countStoreProcessor(params, next) {
-    let operation = params["operation"];
+// ----------------------------------------------------------------------------
+// Application logic. The functions that will be called on the "planning" stage
+// that we're defining in this file.
+// ----------------------------------------------------------------------------
 
-    if (operation == 'incrementCount') {
-        var resultName = params['resultName'].toString();
-        params[resultName] = DoIncrementCount(params);
 
-        if (simulateDelay) {
-            var delay = Math.floor(Math.random() * 100);
+function incrementCount(params, next) {
+    var resultName = params['resultName'].toString();
+    params[resultName] = DoIncrementCount(params);
 
-            log.info("Simulating long-running count store pipeline stage " +
-                     "with delay of " + delay + "ms for session " +
-                     params["session"]);
+    if (simulateDelay) {
+        var delay = Math.floor(Math.random() * 100);
 
-            setTimeout(
-                () => {
-                    log.info("Continuing long-running count store pipeline " +
-                            "stage for session " + params["session"]);
-                    next();
-                },
-                delay);
-        } else {
-            next();
-        }
+        log.info("Simulating long-running count store pipeline stage " +
+                    "with delay of " + delay + "ms for session " +
+                    params["session"]);
+
+        setTimeout(
+            () => {
+                log.info("Continuing long-running count store pipeline " +
+                        "stage for session " + params["session"]);
+                next();
+            },
+            delay);
+    } else {
+        next();
     }
 }
 
+// ----------------------------------------------------------------------------
+// Set up and start the pipeline server.
+// ----------------------------------------------------------------------------
+
 // Instantiate Pipeline server, prepare to listen on some port.
 let pipelineServer = pipeline.createServer('countStoreStage');
-pipelineServer.process('/rest/:operation', countStoreProcessor);
+pipelineServer.process(
+    '/rest/:operation',
+    (params, next) => {
+        let operation = params["operation"];
+
+        if (operation == 'incrementCount') {
+            incrementCount(params, next);
+        }
+    });
 
 // Start Pipeline server listening on a port.
 pipelineServer.listen(pipelineConfig.countStorePort);
