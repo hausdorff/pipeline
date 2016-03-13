@@ -2,6 +2,9 @@ language: node_js
 node_js:
   - stable
   
+notifications:
+  slack: shew:RhmgMQ3PGUV9ti77Un6jOc5U
+  
 before_script: 
   - "npm run typings"
   - "npm run build"
