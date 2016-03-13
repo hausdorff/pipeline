@@ -17,7 +17,7 @@ function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
     if (!params.code) { next(); return; }
 
-    var f = pipes.generateFunction(params.code);
+    var f = pipes.createFunction(params.code);
     delete params.code;
 
     ((pipeline: pipes.Pipeline, params: any, next: () => void) => {
@@ -42,6 +42,7 @@ log.info('Process Javascript Stage listening on ' + pipelineConfig.processJavasc
 
 export var ready = true;
 
+/* 
 // -------------------
 // Code gen for eval
 // All old
@@ -79,4 +80,4 @@ function Code(params) {
     })();
     `;
 }
-
+*/

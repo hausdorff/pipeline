@@ -16,9 +16,9 @@ var client = restify.createJsonClient({
     version: '*'
 });
 
-describe('Examples/server REST API', () => {
+describe('Examples/server.ts REST API', () => {
 
-    describe('basic end-to-end', () => {
+    describe('basic end-to-end tests', () => {
 
         it('should return hello', (done) => {
             client.get('/api/hello', (err, req, res, data) => {
@@ -46,6 +46,7 @@ describe('Examples/server REST API', () => {
                 expect(err).to.be.null;
                 expect(res.statusCode).to.equal(201);
                 expect(data).to.be.a('string');
+                expect(data.substring(0,11)).to.equal('The date is');
                 done();
             });
         });
@@ -56,6 +57,7 @@ describe('Examples/server REST API', () => {
                 expect(err).to.be.null;
                 expect(res.statusCode).to.equal(201);
                 expect(data).to.be.a('string');
+                expect(data.substring(0,13)).to.equal('Current count');
                 done();
             });
         });

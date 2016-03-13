@@ -32,7 +32,7 @@ function restifyServerHandler(pipeline: pipes.Pipeline, request: restify.Request
 
     pipeline.send(pipelineConfig.planStoreStage,
         '/lookup/' + operation,
-        pipes.mergeObjects(request.params, { operation: operation, session: session, initialNode: pipelineServer.myUrl.href }));
+        pipes.objectAssign(request.params, { operation: operation, session: session, initialNode: pipelineServer.myUrl.href }));
 }
 
 server.post('/api/:operation', (req, res, next) => restifyServerHandler(pipeline, req, res, next));

@@ -88,7 +88,6 @@ export class Pipeline {
 
     public clients = new ClientManager();
     public configServer: restify.Client;
-    private lastSessionId = 0;
 
     constructor(configurationUrl: URL.Url) {
         this.configServer = restify.createJsonClient(
@@ -98,7 +97,7 @@ export class Pipeline {
 
     public merge(... args : Object[]) : Object {
         args.unshift({});
-        return mergeObjects.apply(null, args);
+        return objectAssign.apply(null, args);
     }
 
     public createServer(stageName: string) : PipelineServer {
@@ -119,8 +118,7 @@ export class Pipeline {
                 code?: Continuation) {
         // Find stage, select server from that stage to send to.
         let client = this.broker.find(stageName).map(parameters);
-        let params = mergeObjects(
-            {},
+        let params = this.merge(
             parameters,
             !code ? {} : { code: code.toString() });
 
@@ -146,8 +144,7 @@ export class Pipeline {
                       code?: Continuation) {
         // Find stage, select server from that stage to send to.
         let client = this.clients.find(address);
-        let params = mergeObjects(
-            {},
+        let params = this.merge(
             parameters,
             !code ? {} : { code: code.toString() });
 
@@ -171,7 +168,7 @@ export class Pipeline {
         log.info('Executing to stage', stageName, 'with parameter \r\n',
                  parameters);
 
-        let params = mergeObjects({}, parameters, { code: code.toString() });
+        let params = objectAssign({}, parameters, { code: code.toString() });
         this.broker
             .find(stageName)
             .map(parameters)
@@ -308,22 +305,16 @@ export class ServiceBroker {
 
 
 //
-// ...
+// RestifySesionManager
+//
+// Used by front end restify servers to help when computation is done by a pipeline
 //
 
 export class RestifySession {
-    public request: restify.Request;
-    public response: restify.Response;
-    public next: restify.Next;
     public started: Date;
-    public id: string;
-    
-    constructor(sessionId : string, request : restify.Request, response : restify.Response, next : restify.Next) {
-        this.request = request;
-        this.response = response;
-        this.next = next;
+        
+    constructor(public id : string, public request : restify.Request, public response : restify.Response, public next : restify.Next) {
         this.started = new Date(Date.now());
-        this.id = sessionId;
     }
 }
 
@@ -333,7 +324,7 @@ export class RestifySessionManager {
         var session = new RestifySession((this.curentSessionId++).toString(), request, response, next); 
         this.sessions[session.id] = session; return session.id; }
     public find(sessionId: string): RestifySession { return this.sessions[sessionId]; }
-    sessions: { [key: string]: RestifySession } = {};
+    private sessions: { [key: string]: RestifySession } = {};
 }
 
 
@@ -349,8 +340,8 @@ export function mergeJsonData(start: Object, json: string): Object {
     return result;
 }
 
-export function mergeObjects(output: Object, ...args: Object[]): Object {
-    for (var index = 0; index < args.length; index++) {
+export function objectAssign(output: Object, ...args: Object[]): Object {  // 'polyfill for ES6 object.assign
+    for (let index = 0; index < args.length; index++) {
         var source = args[index];
         if (source !== undefined && source !== null) {
             Object.keys(source).forEach((key) => {
@@ -361,6 +352,7 @@ export function mergeObjects(output: Object, ...args: Object[]): Object {
     return output;
 }
 
+/* OLD BROWSER FUNCTIONALITY
 export function nameValues(data: string): Object {
     var result = {};
     try {
@@ -373,8 +365,9 @@ export function nameValues(data: string): Object {
     } catch (err) { log.info('Error parsing name/value string.'); }
     return result;
 }
+*/
 
-export function generateFunction(code: string): (...args: any[]) => any {
+export function createFunction(code: string): (...args: any[]) => any {
     var f = () => {
         log.info("empty function");
     }
