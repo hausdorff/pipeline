@@ -185,13 +185,14 @@ export class Pipeline {
             Object.keys(obj).forEach(
                 key => {
                     let addressMap = defaultMap;
+
                     try {
                         addressMap = eval('(' + obj[key].map +  ')');
                     }
                     catch (err) {}
 
                     let map = (nodes: string[], params): PipelineClient => {
-                        return this.clients.find(addressMap(nodes,params));
+                        return this.clients.find(addressMap(nodes, params));
                     }
 
                     this.broker.add(key,new Stage(key, obj[key].nodes, map));
@@ -201,14 +202,27 @@ export class Pipeline {
 }
 
 export class ClientManager {
-    clients: { [key: string]: PipelineClient } = {};
+    private clients: { [key: string]: PipelineClient } = {};
 
-    public find(location: string): PipelineClient {
-        var url = URL.parse(location);
-        var clientAddress = url.protocol + '//' + url.host
+    /**
+     * Takes a string representing a URL, parses it, and returns a
+     * `PipelineClient` for domain/IP address/name that it points at. For
+     * example, if you pass us `http://127.0.0.1:8080`, we will return a
+     * `PipelineClient` for the address `127.0.0.1`.
+     * 
+     * @param  url The string with the URL pointing at a pipeline.
+     * @return     A `PipelineClient` for the address of that URL.
+     */
+    public find(url: string): PipelineClient {
+        let parsedUrl = URL.parse(url);
+        let clientAddress = parsedUrl.protocol + '//' + parsedUrl.host;
+
         if (!this.clients[clientAddress]) {
-            this.clients[clientAddress] = new PipelineClient(url, restify.createJsonClient({ url: clientAddress }));
+            this.clients[clientAddress] = new PipelineClient(
+                parsedUrl,
+                restify.createJsonClient({ url: clientAddress }));
         }
+
         return this.clients[clientAddress];
     }
 }
@@ -261,12 +275,14 @@ export class Stage {
                 private mapper: Mapper) { }
 
     /**
-     * Selects from a set of possible nodes, and produces a `PipelineClient`
-     * for it.
+     * Selects from a set of possible nodes using the `mapper` function passed
+     * into the constructor, and produces a `PipelineClient` for it.
      * 
-     * @param parameters A JSON object containing a miscelleneous bag of
-     *                   properties the `mapper` could need to make its
-     *                   decision.
+     * @param  parameters A JSON object containing a miscelleneous bag of
+     *                    properties the `mapper` could need to make its
+     *                    decision.
+     * @return            A `PipelineClient` for the node selected by the
+     *                    `mapper` function.
      */
     public map(parameters: Object): PipelineClient {
         return this.mapper(this.nodes, parameters);
@@ -279,7 +295,7 @@ export class Stage {
 //
 
 export class ServiceBroker {
-    stages: { [key: string]: Stage } = {};
+    private stages: { [key: string]: Stage } = {};
 
     public find(name: string): Stage {
         return this.stages[name];
