@@ -5,7 +5,7 @@ var log = require('winston');
 log.level = 'error';
 
 // Create a pipeline, configure with the canoncial config server URL.
-var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
+let pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
 // The processing logic for the different stages. We feed this to the
 // `PipelineServer` so that it knows what to do with a request.
@@ -89,8 +89,8 @@ function processHandler(params: any, next: ()=>void) {
 }
 
 // Instantiate Pipeline servers, prepare them to listen on some port.
-var pipelineServerA = pipeline.createServer(pipelineConfig.planStoreStage);
-var pipelineServerB = pipeline.createServer(pipelineConfig.planStoreStage);
+let pipelineServerA = pipeline.createServer(pipelineConfig.planStoreStage);
+let pipelineServerB = pipeline.createServer(pipelineConfig.planStoreStage);
 
 pipelineServerA.process('/lookup/:operation', processHandler);
 pipelineServerB.process('/lookup/:operation', processHandler);

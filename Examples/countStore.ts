@@ -5,19 +5,18 @@ import pipelineConfig = require('./pipelineConfig');
 var log = require('winston');
 log.level = 'error';
 
-var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
-
- var pipelineServer = pipeline.createServer('countStoreStage');
+// Create a pipeline, configure with the canoncial config server URL.
+let pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
 export var simulateDelay = true;
-var count = 0;
+let count = 0;
 function DoIncrementCount(params) {
     count++;
     return count;
 }
 
-pipelineServer.process('/rest/:operation', (params, next) => {
-    var operation = params["operation"];
+function countStoreProcessor(params, next) {
+    let operation = params["operation"];
 
     if (operation == 'incrementCount') {
         var resultName = params['resultName'].toString();
@@ -25,21 +24,31 @@ pipelineServer.process('/rest/:operation', (params, next) => {
 
         if (simulateDelay) {
             var delay = Math.floor(Math.random() * 100);
-            log.info("Simulating long-running count store pipeline stage with delay of " + delay + "ms for session " + params["session"]);
-            setTimeout(() => {
-                log.info("Continuing long-running count store pipeline stage for session " + params["session"]);
-                next();
-            }, delay);
-        }
-        else {
+
+            log.info("Simulating long-running count store pipeline stage " +
+                     "with delay of " + delay + "ms for session " +
+                     params["session"]);
+
+            setTimeout(
+                () => {
+                    log.info("Continuing long-running count store pipeline " +
+                            "stage for session " + params["session"]);
+                    next();
+                },
+                delay);
+        } else {
             next();
         }
-
     }
-});
+}
 
+// Instantiate Pipeline server, prepare to listen on some port.
+let pipelineServer = pipeline.createServer('countStoreStage');
+pipelineServer.process('/rest/:operation', countStoreProcessor);
 
+// Start Pipeline server listening on a port.
 pipelineServer.listen(pipelineConfig.countStorePort);
 log.info('CountStore Stage listening on ' + pipelineConfig.countStorePort);
 
+// Tell consuming scripts that the servers are provisioned and ready.
 export var ready = true;
