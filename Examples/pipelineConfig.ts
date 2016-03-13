@@ -10,11 +10,11 @@ export var frontdoorRestPort = 8000;
 export var frontdoorStage = 'frontdoorStage';
 export var frontdoorPort = 8080;
 export var planStoreStage = 'planStoreStage';
-export var planStorePorts = [8081, 8081];
+export var planStorePorts = [8081, 8082];
 export var countStoreStage = 'countStoreStage';
-export var countStorePort = 8082;
+export var countStorePort = 8083;
 export var processJavascriptStage = 'processJavascriptStage';
-export var processJavascriptPorts = [8083, 8084];
+export var processJavascriptPorts = [8084, 8085];
 
 export var pipelineConfigServerUrl = url.parse("http://localhost:" + pipelineConfigServerPort);
 
@@ -24,7 +24,7 @@ var anyMap = (nodes: string[], params: Object) => {
 
 var planMap = (nodes: string[], params: any) => {
     log.info('Plan map parameters are \r\n',params,'\r\n for ',nodes);
-    var result = (params.operation && params.operation.toString() <= "Middle") ? nodes[0] : nodes[1];
+    var result = (params.operation && params.operation.toString() <= "middle") ? nodes[0] : nodes[1];
     log.info('Plan map returning address ', result);
     return result;
 }

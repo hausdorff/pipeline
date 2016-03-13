@@ -6,10 +6,10 @@ log.level = 'error';
 
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
-var pipelineServer = pipeline.createServer(pipelineConfig.planStoreStage);
+var pipelineServerA = pipeline.createServer(pipelineConfig.planStoreStage);
+var pipelineServerB = pipeline.createServer(pipelineConfig.planStoreStage);
 
-pipelineServer.process('/lookup/:operation', (params, next) => {
-
+function processHandler(params: any, next: ()=>void) {
     var operation = params["operation"];
 
     log.info('Got lookup operation for ', operation);
@@ -44,9 +44,15 @@ pipelineServer.process('/lookup/:operation', (params, next) => {
         });
     }
     next();
-});
+}
 
-pipelineServer.listen(pipelineConfig.planStorePorts[0]);
+pipelineServerA.process('/lookup/:operation', processHandler);
+pipelineServerB.process('/lookup/:operation', processHandler);
+
+pipelineServerA.listen(pipelineConfig.planStorePorts[0]);
 log.info('PlanStore Stage listening on ' + pipelineConfig.planStorePorts[0]);
+
+pipelineServerB.listen(pipelineConfig.planStorePorts[1]);
+log.info('PlanStore Stage listening on ' + pipelineConfig.planStorePorts[1]);
 
 export var ready = true;
