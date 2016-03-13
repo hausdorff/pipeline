@@ -3,6 +3,9 @@ import restify = require('restify');
 import pipes = require('../pipes');
 import pipelineConfig = require('./pipelineConfig');
 
+var log = require('winston');
+log.level = 'error';
+
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
 var pipelineServer1 = pipeline.createServer(pipelineConfig.processJavascriptStage);
@@ -10,7 +13,7 @@ var pipelineServer2 = pipeline.createServer(pipelineConfig.processJavascriptStag
 
 function handler(pipeline: pipes.Pipeline, params: any, next: () => void) {
 
-    console.log('Got process javascript request', params);
+    log.info('Got process javascript request', params);
 
     if (!params.code) { next(); return; }
 
@@ -32,10 +35,10 @@ pipelineServer2.process('/pipeline/execute', (params, next) => {
 
 
 pipelineServer1.listen(pipelineConfig.processJavascriptPorts[0]);
-console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
+log.info('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[0]);
 
 pipelineServer2.listen(pipelineConfig.processJavascriptPorts[1]);
-console.log('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[1]);
+log.info('Process Javascript Stage listening on ' + pipelineConfig.processJavascriptPorts[1]);
 
 export var ready = true;
 

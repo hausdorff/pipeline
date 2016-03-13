@@ -1,6 +1,9 @@
 import pipes = require('../pipes');
 import pipelineConfig = require('./pipelineConfig');
 
+var log = require('winston');
+log.level = 'error';
+
 var pipeline = pipes.createPipeline(pipelineConfig.pipelineConfigServerUrl.href);
 
 var pipelineServer = pipeline.createServer(pipelineConfig.planStoreStage);
@@ -9,7 +12,7 @@ pipelineServer.process('/lookup/:operation', (params, next) => {
 
     var operation = params["operation"];
 
-    console.log('Got lookup operation for ', operation);
+    log.info('Got lookup operation for ', operation);
 
     if (operation == 'hello') {
         pipeline.sendToNode(params["initialNode"], '/pipeline/result', pipeline.merge(params, { result: "Hello" }));
@@ -44,6 +47,6 @@ pipelineServer.process('/lookup/:operation', (params, next) => {
 });
 
 pipelineServer.listen(pipelineConfig.planStorePorts[0]);
-console.log('PlanStore Stage listening on ' + pipelineConfig.planStorePorts[0]);
+log.info('PlanStore Stage listening on ' + pipelineConfig.planStorePorts[0]);
 
 export var ready = true;

@@ -1,6 +1,9 @@
 import url = require("url");
 import restify = require('restify');
 
+var log = require('winston');
+log.level = 'error';
+
 export var pipelineConfigServerPort = 9000;
 export var frontdoorRestPort = 8000;
 
@@ -20,9 +23,9 @@ var anyMap = (nodes: string[], params: Object) => {
 }
 
 var planMap = (nodes: string[], params: any) => {
-    console.log('Plan map parameters are \r\n',params,'\r\n for ',nodes);
+    log.info('Plan map parameters are \r\n',params,'\r\n for ',nodes);
     var result = (params.operation && params.operation.toString() <= "Middle") ? nodes[0] : nodes[1];
-    console.log('Plan map returning address ', result);
+    log.info('Plan map returning address ', result);
     return result;
 }
 
@@ -40,7 +43,7 @@ config[pipelineConfig.processJavascriptStage] = { nodes: ['http://localhost:' + 
 export function updateServer() {
     var configClient = restify.createJsonClient({ url: pipelineConfig.pipelineConfigServerUrl.href });
 
-    console.log('Sending configuration to server');
+    log.info('Sending configuration to server');
     configClient.put('/config', config, (err, req, res, obj) => {
         if (err || res.statusCode != 201) throw 'could not put configuration';
     });
