@@ -92,19 +92,34 @@ export class PipelineServer {
     }
 
     private notifyConfigServerOfAvailablityAndGetAddress() {
-        this.pipeline.configServer.post('/stages/' + this.stageName + '/nodeReady', { stage: this.stageName, port: this.port }, (err, req, res, obj) => {
-            if (res.statusCode !== 201) { throw "Failed to register with configuration service"; }
-            log.info('Setting ' + this.stageName + ' pipeline server address to ' + obj.address);
-            this.myUrl = URL.parse(obj.address);
-        });
+        // HACK: POST to the config server and get addresss back. This is due // to a limitation in node -- it is hard to get your own IP.
+        this.pipeline.configServer.post(
+            '/stages/' + this.stageName + '/nodeReady',
+            { stage: this.stageName, port: this.port },
+            (err, req, res, obj) => {
+                if (res.statusCode !== 201) {
+                    throw "Failed to register with configuration service";
+                }
+
+                log.info('Setting ' + this.stageName +
+                         ' pipeline server address to ' + obj.address);
+
+                this.myUrl = URL.parse(obj.address);
+            });
     }
 
     private handleCode(code: string, params: Object, next: restify.Next) {
         if (!code) return;
+
         try {
-            var f = eval("(function (pipeline, params, next) { var f = " + code + "; f(params, next); })");
+            var f = eval("(function (pipeline, params, next) { var f = " +
+                         code + "; f(params, next); })");
+
             f(this.pipeline, params, next);
-        } catch (err) { log.info('Could not eval ', code); throw 'Code evaluation error'; }
+        } catch (err) {
+            log.info('Could not eval ', code);
+            throw 'Code evaluation error';
+        }
     }
 }
 
