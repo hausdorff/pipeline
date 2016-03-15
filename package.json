@@ -14,7 +14,7 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "mocha": "^2.4.5",
-    "tsc": "^1.20150623.0",
+    "typescript": "^1.6.2",
     "tsd": "^0.6.5",
     "winston": "2.2.0"
   },
