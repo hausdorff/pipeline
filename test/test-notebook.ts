@@ -1,3 +1,5 @@
+import * as ts from "typescript";
+
 import restify = require("restify");
 import URL = require("url");
 
@@ -35,7 +37,7 @@ let processingStageHost: string = "127.0.0.1";
 let processingStagePort: string = "8003";
 let processingStageUrl: string = "http://" + processingStageHost + ":" + processingStagePort;
 let processingStageId: string = "ProcessingStage";
-let processingStageResource: string = "/lookup/cache";
+let processingStageResource: string = "/lookup/processing";
 
 
 // ----------------------------------------------------------------------------
@@ -56,18 +58,22 @@ class ServiceBrokerClient {
         this.stages[cacheStageId] = [
             [cacheStageUrl],
             cacheStageResource,
-            cacheStage,
+            this.cacheStage,
             restify.createJsonClient({url: cacheStageUrl})];
         this.stages[dbStageId] = [
             [dbStageUrl],
             dbStageResource,
-            dbStage,
+            this.dbStage,
             restify.createJsonClient({url: dbStageUrl})];
         this.stages[processingStageId] = [
             [processingStageUrl],
             processingStageResource,
-            processingStage,
+            this.processingStage,
             restify.createJsonClient({url: processingStageUrl})];
+
+        this.cacheStage.listen(cacheStagePort);
+        this.dbStage.listen(dbStagePort);
+        this.processingStage.listen(processingStagePort);
     }
 
     public resolve(id: string): [string[], string, Stage, restify.Client] {
@@ -75,6 +81,10 @@ class ServiceBrokerClient {
     }
 
     private stages: { [id: string]: [string[], string, Stage, restify.Client] } = { };
+
+    public cacheStage = new CacheStage(cacheStageResource, this);
+    public dbStage = new DbStage(dbStageResource, this);
+    public processingStage = new ProcessingStage(processingStageResource, this);
 }
 
 
@@ -121,7 +131,7 @@ abstract class Stage {
                 delete params.code;
 
                 if (code) {
-                    this.handleCode(code, params, this.sbc);
+                    this.handleCode(code, params, sbc);
                 }
 
                 return next();
@@ -150,19 +160,21 @@ abstract class Stage {
 
         let params = this.merge(
             parameters,
-            !k ? {} : { code: k.toString() });
+            !k
+                ? {}
+                : { code: k.toString() });
 
         // POST response.
         client.post(
-            this.route,
+            resource,
             params,
             (err, req, res, obj) => {
                 if (err) {
-                    log.error('Error sending to ', this.route, ': ', err);
+                    log.error('Error sending to ', hosts, resource, ':\n', err);
                     throw 'Send error';
                 }
                 if (res.statusCode == 201) {
-                    log.info('Request complete for', sbHost, this.route);
+                    log.info('Request complete for', sbHost, resource);
                     // very important - do nothing... the response will be sent
                     // back via the pipeline. This is just acknowlegement that
                     // the next stage got the request.  
@@ -178,12 +190,17 @@ abstract class Stage {
         try {
             // Wrap function in something with parameters that have known names,
             // so that we can call it easily.
-            var f = eval("(function (sbc, stage, params) { var f = " +
-                         code + "; f(sbc, stage, params); })");
+            let toEval = "(function (sbc: ServiceBrokerClient, stage: Stage, params) { var f = " +
+                code.replace(/^ *"use strict";/,"") + "; f(sbc, stage, params); })";
+
+            toEval = ts.transpile(
+                toEval.toString(), { module: ts.ModuleKind.CommonJS });
+
+            var f = eval(toEval);
 
             f(sbc, this, params);
         } catch (err) {
-            log.error('Could not eval ', code);
+            log.error("Could not eval '", code, "': ", err);
             throw 'Code evaluation error';
         }
     }
@@ -249,21 +266,24 @@ let getAndProcess = (sbc: ServiceBrokerClient, cs: CacheStage, params: any) => {
     log.info("getAndProcess");
     let k: string = "your_favorite_key";
     if (cs.has(k)) {
-        cs.callcc<ProcessingStage>(processData, cs.get(k), "ProcessingStage",
+        cs.callcc<ProcessingStage>(processData, {}, "ProcessingStage",
                                    sbc);
     } else {
-        cs.callcc<DbStage>(getFromDbAndCache, k, "DbStage", sbc);
+        log.info ("Did not find key");
+        cs.callcc<DbStage>(getFromDbAndCache, {}, "DbStage", sbc);
     }
 };
 
 let getFromDbAndCache = (sbc: ServiceBrokerClient, dbs: DbStage,
                          params: any) => {
+    log.info("getFromDbAndCache");
     let v = dbs.getThing("your_favorite_key");
 
-    // Send data back to caching layer. NOTE: We'll want to be able to get `k`
-    // from the closure if this function was a function literal.
+    // Send data back to caching layer. NOTE: We'll want to replace the
+    // "bogus_value_for_now" below with v when we get Babel integration and can
+    // finally life the environment out and serialize that too.
     dbs.callcc<CacheStage>(
-        (sbc, cs, p) => { cs.set(params, v); },
+        (sbc, cs, p) => { cs.set(params, "bogus_value_for_now"); },
         {},
         "CacheStage",
         sbc);
@@ -271,6 +291,7 @@ let getFromDbAndCache = (sbc: ServiceBrokerClient, dbs: DbStage,
 
 let processData = (sb: ServiceBrokerClient, pss: ProcessingStage,
                    params: any) => {
+    log.info("processData");
     // TODO: retrieve data from cache, put into this call here.
     pss.doThing("put data here");
 };
@@ -279,20 +300,11 @@ let processData = (sb: ServiceBrokerClient, pss: ProcessingStage,
 // ----------------------------------------------------------------------------
 // Start everything.
 // ----------------------------------------------------------------------------
-let cacheStage = new CacheStage(cacheStageResource, this);
-cacheStage.listen(cacheStagePort);
-
-let dbStage = new DbStage(dbStageResource, this);
-dbStage.listen(dbStagePort);
-
-let processingStage = new ProcessingStage(processingStageResource, this);
-processingStage.listen(processingStagePort);
-
 // Start this after the stages, because this references them.
 let sbc = new ServiceBrokerClient();
 
 // Call cache stage.
-cacheStage.callcc(getAndProcess, {}, "CacheStage", sbc);
+sbc.cacheStage.callcc(getAndProcess, {}, "CacheStage", sbc);
 
 
 // ----------------------------------------------------------------------------
