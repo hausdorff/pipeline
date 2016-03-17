@@ -1,13 +1,14 @@
 import restify = require("restify");
+import URL = require("url");
 
 var log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 
 // Simple service schema declaration.
 let serviceSchema = [
     {
-        name: "Hello"
+        id: "Hello"
     }
 ];
 
@@ -18,17 +19,23 @@ let serviceSchema = [
 
 let sbHost: string = "http://127.0.0.1:8000";
 
-let cacheStageHost: string = "http://127.0.0.1:8001";
+let cacheStageHost: string = "127.0.0.1";
+let cacheStagePort: string = "8001";
+let cacheStageUrl: string = "http://" + cacheStageHost + ":" + cacheStagePort;
 let cacheStageId: string = "CacheStage";
-let cacheStageResouce: string = "/lookup/cache";
+let cacheStageResource: string = "/lookup/cache";
 
-let dbStageHost: string = "http://127.0.0.1:8002";
+let dbStageHost: string = "127.0.0.1";
+let dbStagePort: string = "8002";
+let dbStageUrl: string = "http://" + dbStageHost + ":" + dbStagePort;
 let dbStageId: string = "DbStage";
-let dbStageResouce: string = "/lookup/database";
+let dbStageResource: string = "/lookup/database";
 
-let processingStageHost: string = "http://127.0.0.1:8003";
+let processingStageHost: string = "127.0.0.1";
+let processingStagePort: string = "8003";
+let processingStageUrl: string = "http://" + processingStageHost + ":" + processingStagePort;
 let processingStageId: string = "ProcessingStage";
-let processingStageResouce: string = "/lookup/cache";
+let processingStageResource: string = "/lookup/cache";
 
 
 // ----------------------------------------------------------------------------
@@ -42,32 +49,32 @@ type Selector = (ips: string[]) => string;
 
 class ServiceBrokerClient {
     constructor() {
+        // TODO: Figure out how stage instantiation works. This is the client,
+        // so the references below to `cacheStage` and so on can't be
+        // references to running stages, like they are here. For now this is
+        // fine, but this will have to change.
         this.stages[cacheStageId] = [
-            [cacheStageHost],
-            cacheStageResouce,
-            this.cacheStage];
+            [cacheStageUrl],
+            cacheStageResource,
+            cacheStage,
+            restify.createJsonClient({url: cacheStageUrl})];
         this.stages[dbStageId] = [
-            [dbStageHost],
-            dbStageResouce,
-            this.dbStage];
+            [dbStageUrl],
+            dbStageResource,
+            dbStage,
+            restify.createJsonClient({url: dbStageUrl})];
         this.stages[processingStageId] = [
-            [processingStageHost],
-            processingStageResouce,
-            this.processingStage];
+            [processingStageUrl],
+            processingStageResource,
+            processingStage,
+            restify.createJsonClient({url: processingStageUrl})];
     }
 
-    public resolve(id: string): [string[], string, Stage] {
+    public resolve(id: string): [string[], string, Stage, restify.Client] {
         return this.stages[id];
     }
 
-    // TODO: store the groups of machines that each stage consists of, so that
-    // the `Selector` to can select one.
-    // TODO: add a RESTify client that will POST to the other stages.
-    private cacheStage = new CacheStage(cacheStageHost, this);
-    private dbStage = new DbStage(dbStageHost, this);
-    private processingStage = new ProcessingStage(processingStageHost, this);
-
-    private stages: { [id: string]: [string[], string, Stage] } = { };
+    private stages: { [id: string]: [string[], string, Stage, restify.Client] } = { };
 }
 
 
@@ -105,6 +112,7 @@ abstract class Stage {
         this.server.post(
             route,
             (req, res, next) => {
+                log.info("stage post listener");
                 res.send(201);
 
                 let code = req.params.code;
@@ -120,6 +128,16 @@ abstract class Stage {
             });
     }
 
+    public listen(...args: any[]) {
+        this.port = args[0];
+        this.server.listen.apply(this.server, args);
+
+        log.info("Stage listening on port " + this.port + " for resource " +
+                 this.route);
+
+        // TODO: Add John's hack for getting the current IP here.
+    }
+
     public callcc<T extends Stage>(k: K<T>, params: any, id: string,
                                    sbc: ServiceBrokerClient) {
         return this.callccSelector<T>(k, ss => ss[0], params, id, sbc);
@@ -128,20 +146,19 @@ abstract class Stage {
     public callccSelector<T extends Stage>(k: K<T>, s: Selector,
                                            parameters: any, id: string,
                                            sbc: ServiceBrokerClient) {
-        // TODO: do stuff here.
-        let [hosts, resource, stage] = sbc.resolve(id);
+        let [hosts, resource, stage, client] = sbc.resolve(id);
 
         let params = this.merge(
             parameters,
             !k ? {} : { code: k.toString() });
 
         // POST response.
-        this.client.post(
+        client.post(
             this.route,
             params,
             (err, req, res, obj) => {
                 if (err) {
-                    log.info('Error sending to ', this.route);
+                    log.error('Error sending to ', this.route, ': ', err);
                     throw 'Send error';
                 }
                 if (res.statusCode == 201) {
@@ -166,7 +183,7 @@ abstract class Stage {
 
             f(sbc, this, params);
         } catch (err) {
-            log.info('Could not eval ', code);
+            log.error('Could not eval ', code);
             throw 'Code evaluation error';
         }
     }
@@ -176,7 +193,7 @@ abstract class Stage {
         return objectAssign.apply(null, args);
     }
 
-    private client: restify.Client = restify.createJsonClient({url: sbHost});
+    private port: string
     private server: restify.Server;
     private sbc: ServiceBrokerClient;
 }
@@ -194,6 +211,7 @@ abstract class Stage {
 
 class CacheStage extends Stage {
     public has(k: string): boolean {
+        log.info("CacheStage.has(" + k + ")");
         return !(typeof this.store[k] === "undefined");
     }
 
@@ -228,6 +246,7 @@ class ProcessingStage extends Stage {
 // ----------------------------------------------------------------------------
 
 let getAndProcess = (sbc: ServiceBrokerClient, cs: CacheStage, params: any) => {
+    log.info("getAndProcess");
     let k: string = "your_favorite_key";
     if (cs.has(k)) {
         cs.callcc<ProcessingStage>(processData, cs.get(k), "ProcessingStage",
@@ -255,6 +274,25 @@ let processData = (sb: ServiceBrokerClient, pss: ProcessingStage,
     // TODO: retrieve data from cache, put into this call here.
     pss.doThing("put data here");
 };
+
+
+// ----------------------------------------------------------------------------
+// Start everything.
+// ----------------------------------------------------------------------------
+let cacheStage = new CacheStage(cacheStageResource, this);
+cacheStage.listen(cacheStagePort);
+
+let dbStage = new DbStage(dbStageResource, this);
+dbStage.listen(dbStagePort);
+
+let processingStage = new ProcessingStage(processingStageResource, this);
+processingStage.listen(processingStagePort);
+
+// Start this after the stages, because this references them.
+let sbc = new ServiceBrokerClient();
+
+// Call cache stage.
+cacheStage.callcc(getAndProcess, {}, "CacheStage", sbc);
 
 
 // ----------------------------------------------------------------------------
