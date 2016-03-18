@@ -4,7 +4,7 @@ import restify = require("restify");
 import URL = require("url");
 
 var log = require('winston');
-log.level = 'info';
+log.level = 'error';
 
 
 // Simple service schema declaration.
@@ -311,17 +311,17 @@ sbc.cacheStage.callcc(getAndProcess, {}, "CacheStage", sbc);
 // Tests.
 // ----------------------------------------------------------------------------
 
-import chai = require('chai');
-var expect = chai.expect;
+// import chai = require('chai');
+// var expect = chai.expect;
 
-// Placeholder tests.
-describe('Test classname', () => {
+// // Placeholder tests.
+// describe('Test classname', () => {
 
-    describe('2 + 4', () => {
-        it('should be 6', (done) => {
-            expect(2+4).to.equals(6);
-            done();
-        });
-    });
-});
+//     describe('2 + 4', () => {
+//         it('should be 6', (done) => {
+//             expect(2+4).to.equals(6);
+//             done();
+//         });
+//     });
+// });
 
