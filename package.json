@@ -16,7 +16,8 @@
     "mocha": "^2.4.5",
     "typescript": "^1.6.2",
     "tsd": "^0.6.5",
-    "winston": "2.2.0"
+    "winston": "2.2.0",
+    "http2": "^3.3.2"
   },
   "dependencies": {
     "restify": "^4.0.3"
