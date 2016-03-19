@@ -248,8 +248,13 @@ class DbStage extends Stage {
 }
 
 class ProcessingStage extends Stage {
+    public static thingWasProcessed: boolean = false; // Used for tests.
+
     public doThing(v: string) {
         log.info("ProcessingStage: processing data '" + v + "'");
+
+        // Allow tests to verify function ran.
+        ProcessingStage.thingWasProcessed = true;
     }
 }
 
@@ -263,7 +268,7 @@ class ProcessingStage extends Stage {
 
 // Runs on `CacheStage`. Checks cache for a key; if present, forwards the value
 // on to `ProcessingStage`. If it is not, we forward a request to the database.
-let getDataAndProcess = (cs: CacheStage, params: any) => {
+function getDataAndProcess(cs: CacheStage, params: any): void {
     if (cs.has(params.key)) {
         let dataToProcess = { value: cs.get(params.key) };
 
@@ -272,18 +277,18 @@ let getDataAndProcess = (cs: CacheStage, params: any) => {
                   "' to processing node");
 
         cs.forward<ProcessingStage>(processData, dataToProcess,
-                                    "ProcessingStage");
+                                    processingStageId);
     } else {
         log.info("CacheStage: Did not find key '" + params.key +
                   "' in cache; forwarding request to database node");
 
-        cs.forward<DbStage>(cacheAndProcessData, params, "DbStage");
+        cs.forward<DbStage>(cacheAndProcessData, params, dbStageId);
     }
 };
 
 // Runs on `DbStage`. Gets value from database, caches it, and forwards that
 // data on to `ProcessingStage`.
-let cacheAndProcessData = (dbs: DbStage, params: any) => {
+function cacheAndProcessData(dbs: DbStage, params: any): void {
     let dataToProcess = { value: dbs.getThing(params.key) };
 
     log.info("DbStage: Retrieved value '" + dataToProcess.value +
@@ -298,13 +303,13 @@ let cacheAndProcessData = (dbs: DbStage, params: any) => {
     dbs.forward<CacheStage>(
         (cs, p) => { cs.set(params, "bogus_value_for_now"); },
         dataToProcess,
-        "CacheStage");
+        cacheStageId);
 
-    dbs.forward<ProcessingStage>(processData, dataToProcess, "ProcessingStage");
+    dbs.forward<ProcessingStage>(processData, dataToProcess, processingStageId);
 };
 
 // Runs on `ProcessingStage`. Processes a piece of data it recieves.
-let processData = (pss: ProcessingStage, params: any) => {
+function processData(pss: ProcessingStage, params: any): void {
     log.info("ProcessingStage: processing data '" + params.value + "'");
 
     pss.doThing(params.value);
@@ -328,4 +333,20 @@ processingStage.listen(processingStagePort);
 // This request will look up the value for `key` below, process it, and cache
 // it if necessary.
 let keyToLookup = { key: "your_favorite_key" }
-cacheStage.forward(getDataAndProcess, keyToLookup, "CacheStage");
+cacheStage.forward(getDataAndProcess, keyToLookup, cacheStageId);
+
+
+// ----------------------------------------------------------------------------
+// Verify code ran with test suite.
+// ----------------------------------------------------------------------------
+import chai = require('chai');
+var expect = chai.expect;
+
+describe('Test experimental Continuum API', () => {
+    describe('Verify `ProcessingStage` processed some data', () => {
+        it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
+            expect(ProcessingStage.thingWasProcessed).to.equals(true);
+            done();
+        });
+    });
+});
