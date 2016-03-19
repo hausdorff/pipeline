@@ -273,14 +273,14 @@ function getDataAndProcess(cs: CacheStage, params: any): void {
         let dataToProcess = { value: cs.get(params.key) };
 
         log.info("CacheStage: Key '" + params.key +
-                  "' found; forwarding value '" + dataToProcess.value +
-                  "' to processing node");
+                 "' found; forwarding value '" + dataToProcess.value +
+                 "' to processing node");
 
         cs.forward<ProcessingStage>(processData, dataToProcess,
                                     processingStageId);
     } else {
         log.info("CacheStage: Did not find key '" + params.key +
-                  "' in cache; forwarding request to database node");
+                 "' in cache; forwarding request to database node");
 
         cs.forward<DbStage>(cacheAndProcessData, params, dbStageId);
     }
@@ -292,8 +292,8 @@ function cacheAndProcessData(dbs: DbStage, params: any): void {
     let dataToProcess = { value: dbs.getThing(params.key) };
 
     log.info("DbStage: Retrieved value '" + dataToProcess.value +
-              "' for key '" + params.key +
-              "'; forwarding to both `CacheStage` and `ProcessingStage`");
+             "' for key '" + params.key +
+             "'; forwarding to both `CacheStage` and `ProcessingStage`");
 
     // Send data back to both the caching stage and the processing stage.
     //
@@ -333,7 +333,7 @@ processingStage.listen(processingStagePort);
 // This request will look up the value for `key` below, process it, and cache
 // it if necessary.
 let keyToLookup = { key: "your_favorite_key" }
-cacheStage.forward(getDataAndProcess, keyToLookup, cacheStageId);
+cacheStage.forward<CacheStage>(getDataAndProcess, keyToLookup, cacheStageId);
 
 
 // ----------------------------------------------------------------------------
