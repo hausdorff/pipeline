@@ -47,7 +47,8 @@ let processingStageResource: string = "/lookup/processing";
 // ----------------------------------------------------------------------------
 
 type K<T> = (stage: T, params: any) => void;
-type Selector = (ips: string[]) => string;
+type Selector = (machines: Machine[]) => Machine
+type Machine = { url: string, client: restify.Client };
 
 class ServiceBrokerClient {
     constructor() {
@@ -56,35 +57,33 @@ class ServiceBrokerClient {
         // references to running stages, like they are here. For now this is
         // fine, but this will have to change.
         this.stages[cacheStageId] = [
-            [cacheStageUrl],
-            cacheStageResource,
-            this.cacheStage,
-            restify.createJsonClient({url: cacheStageUrl})];
+            [{
+                url: cacheStageUrl,
+                client: restify.createJsonClient({url: cacheStageUrl})
+            }],
+            cacheStageResource
+        ];
         this.stages[dbStageId] = [
-            [dbStageUrl],
-            dbStageResource,
-            this.dbStage,
-            restify.createJsonClient({url: dbStageUrl})];
+            [{
+                url: dbStageUrl,
+                client: restify.createJsonClient({url: dbStageUrl})
+            }],
+            dbStageResource
+        ];
         this.stages[processingStageId] = [
-            [processingStageUrl],
-            processingStageResource,
-            this.processingStage,
-            restify.createJsonClient({url: processingStageUrl})];
-
-        this.cacheStage.listen(cacheStagePort);
-        this.dbStage.listen(dbStagePort);
-        this.processingStage.listen(processingStagePort);
+            [{
+                url: processingStageUrl,
+                client: restify.createJsonClient({url: processingStageUrl})
+            }],
+            processingStageResource
+        ];
     }
 
-    public resolve(id: string): [string[], string, Stage, restify.Client] {
+    public resolve(id: string): [Machine[], string] {
         return this.stages[id];
     }
 
-    private stages: { [id: string]: [string[], string, Stage, restify.Client] } = { };
-
-    public cacheStage = new CacheStage(cacheStageResource, this);
-    public dbStage = new DbStage(dbStageResource, this);
-    public processingStage = new ProcessingStage(processingStageResource, this);
+    private stages: { [id: string]: [Machine[], string] } = { };
 }
 
 
@@ -115,7 +114,8 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 // ----------------------------------------------------------------------------
 
 abstract class Stage {
-    constructor(private route: string, sbc: ServiceBrokerClient) {
+    constructor(private route: string) {
+        this.sbc = new ServiceBrokerClient();
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
 
@@ -131,7 +131,7 @@ abstract class Stage {
                 delete params.code;
 
                 if (code) {
-                    this.handleCode(code, params, sbc);
+                    this.handleCode(code, params, this.sbc);
                 }
 
                 return next();
@@ -154,7 +154,8 @@ abstract class Stage {
 
     public forwardWithSelector<T extends Stage>(k: K<T>, s: Selector,
                                                 parameters: any, id: string) {
-        let [hosts, resource, stage, client] = sbc.resolve(id);
+        let [machines, resource] = this.sbc.resolve(id);
+        let machine = s(machines);
 
         let params = this.merge(
             parameters,
@@ -163,12 +164,12 @@ abstract class Stage {
                 : { code: k.toString() });
 
         // POST response.
-        client.post(
+        machine.client.post(
             resource,
             params,
             (err, req, res, obj) => {
                 if (err) {
-                    log.error('Error sending to ', hosts, resource, ':\n', err);
+                    log.error('Error sending to ', machine.url, resource, ':\n', err);
                     throw 'Send error';
                 }
                 if (res.statusCode == 201) {
@@ -313,9 +314,18 @@ let processData = (pss: ProcessingStage, params: any) => {
 // ----------------------------------------------------------------------------
 // Run the example.
 // ----------------------------------------------------------------------------
-let sbc = new ServiceBrokerClient();
+
+// Set up a little cluster.
+let cacheStage = new CacheStage(cacheStageResource);
+cacheStage.listen(cacheStagePort);
+
+let dbStage = new DbStage(dbStageResource);
+dbStage.listen(dbStagePort);
+
+let processingStage = new ProcessingStage(processingStageResource);
+processingStage.listen(processingStagePort);
 
 // This request will look up the value for `key` below, process it, and cache
 // it if necessary.
 let keyToLookup = { key: "your_favorite_key" }
-sbc.cacheStage.forward(getDataAndProcess, keyToLookup, "CacheStage");
+cacheStage.forward(getDataAndProcess, keyToLookup, "CacheStage");
