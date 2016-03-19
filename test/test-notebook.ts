@@ -148,14 +148,14 @@ abstract class Stage {
         // TODO: Add John's hack for getting the current IP here.
     }
 
-    public callcc<T extends Stage>(k: K<T>, params: any, id: string,
+    public forward<T extends Stage>(k: K<T>, params: any, id: string,
                                    sbc: ServiceBrokerClient) {
-        return this.callccSelector<T>(k, ss => ss[0], params, id, sbc);
+        return this.forwardWithSelector<T>(k, ss => ss[0], params, id, sbc);
     }
 
-    public callccSelector<T extends Stage>(k: K<T>, s: Selector,
-                                           parameters: any, id: string,
-                                           sbc: ServiceBrokerClient) {
+    public forwardWithSelector<T extends Stage>(k: K<T>, s: Selector,
+                                                parameters: any, id: string,
+                                                sbc: ServiceBrokerClient) {
         let [hosts, resource, stage, client] = sbc.resolve(id);
 
         let params = this.merge(
@@ -250,7 +250,7 @@ class DbStage extends Stage {
 
 class ProcessingStage extends Stage {
     public doThing(v: string) {
-        console.log("PROCESSING: " + v);
+        log.info("ProcessingStage: processing data '" + v + "'");
     }
 }
 
@@ -262,66 +262,67 @@ class ProcessingStage extends Stage {
 // can be run on boxes in the cluster.
 // ----------------------------------------------------------------------------
 
-let getAndProcess = (sbc: ServiceBrokerClient, cs: CacheStage, params: any) => {
-    log.info("getAndProcess");
-    let k: string = "your_favorite_key";
-    if (cs.has(k)) {
-        cs.callcc<ProcessingStage>(processData, {}, "ProcessingStage",
-                                   sbc);
+// Runs on `CacheStage`. Checks cache for a key; if present, forwards the value
+// on to `ProcessingStage`. If it is not, we forward a request to the database.
+let getDataAndProcess = (sbc: ServiceBrokerClient, cs: CacheStage,
+                         params: any) => {
+    if (cs.has(params.key)) {
+        let dataToProcess = { value: cs.get(params.key) };
+
+        log.info("CacheStage: Key '" + params.key +
+                  "' found; forwarding value '" + dataToProcess.value +
+                  "' to processing node");
+
+        cs.forward<ProcessingStage>(processData, dataToProcess,
+                                    "ProcessingStage", sbc);
     } else {
-        log.info ("Did not find key");
-        cs.callcc<DbStage>(getFromDbAndCache, {}, "DbStage", sbc);
+        log.info("CacheStage: Did not find key '" + params.key +
+                  "' in cache; forwarding request to database node");
+
+        cs.forward<DbStage>(cacheAndProcessData, params, "DbStage", sbc);
     }
 };
 
-let getFromDbAndCache = (sbc: ServiceBrokerClient, dbs: DbStage,
-                         params: any) => {
-    log.info("getFromDbAndCache");
-    let v = dbs.getThing("your_favorite_key");
+// Runs on `DbStage`. Gets value from database, caches it, and forwards that
+// data on to `ProcessingStage`.
+let cacheAndProcessData = (sbc: ServiceBrokerClient, dbs: DbStage,
+                           params: any) => {
+    let dataToProcess = { value: dbs.getThing(params.key) };
 
-    // Send data back to caching layer. NOTE: We'll want to replace the
-    // "bogus_value_for_now" below with v when we get Babel integration and can
-    // finally life the environment out and serialize that too.
-    dbs.callcc<CacheStage>(
+    log.info("DbStage: Retrieved value '" + dataToProcess.value +
+              "' for key '" + params.key +
+              "'; forwarding to both `CacheStage` and `ProcessingStage`");
+
+    // Send data back to both the caching stage and the processing stage.
+    //
+    // NOTE: We'll want to replace the "bogus_value_for_now" below with v when
+    // we get Babel integration and can finally lift the environment out and
+    // serialize that too.
+    dbs.forward<CacheStage>(
         (sbc, cs, p) => { cs.set(params, "bogus_value_for_now"); },
-        {},
+        dataToProcess,
         "CacheStage",
         sbc);
+
+    dbs.forward<ProcessingStage>(processData, dataToProcess, "ProcessingStage",
+                                 sbc);
 };
 
+// Runs on `ProcessingStage`. Processes a piece of data it recieves.
 let processData = (sb: ServiceBrokerClient, pss: ProcessingStage,
                    params: any) => {
-    log.info("processData");
-    // TODO: retrieve data from cache, put into this call here.
-    pss.doThing("put data here");
+    log.info("ProcessingStage: processing data '" + params.value + "'");
+
+    pss.doThing(params.value);
 };
 
 
 // ----------------------------------------------------------------------------
-// Start everything.
+// Run the example.
 // ----------------------------------------------------------------------------
-// Start this after the stages, because this references them.
 let sbc = new ServiceBrokerClient();
 
-// Call cache stage.
-sbc.cacheStage.callcc(getAndProcess, {}, "CacheStage", sbc);
-
-
-// ----------------------------------------------------------------------------
-// Tests.
-// ----------------------------------------------------------------------------
-
-// import chai = require('chai');
-// var expect = chai.expect;
-
-// // Placeholder tests.
-// describe('Test classname', () => {
-
-//     describe('2 + 4', () => {
-//         it('should be 6', (done) => {
-//             expect(2+4).to.equals(6);
-//             done();
-//         });
-//     });
-// });
-
+// This request will look up the value for `key` below, process it, and cache
+// it if necessary.
+let keyToLookup = { key: "your_favorite_key" }
+sbc.cacheStage.forward(getDataAndProcess, keyToLookup, "CacheStage", sbc);
