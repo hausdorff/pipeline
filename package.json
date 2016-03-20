@@ -7,7 +7,7 @@
     "test": "mocha --recursive dist/test",
     "build": "tsc -p .",
     "watch": "tsc -p . --watch",
-    "typings": "tsd install"
+    "typings": "typings install"
   },
   "author": "",
   "license": "MIT",
@@ -15,7 +15,7 @@
     "chai": "^3.5.0",
     "http2": "^3.3.2",
     "mocha": "^2.4.5",
-    "typescript": "^1.6.2",
+    "typescript": "^1.8.9",
     "typings": "^0.7.9",
     "winston": "2.2.0"
   },
