@@ -1,0 +1,11 @@
+{
+  "name": "Forward",
+  "version": false,
+  "ambientDependencies": {
+    "node": "github:DefinitelyTyped/DefinitelyTyped/node/node.d.ts#4ec3c5bf291bc02f49eb30c1077340b235165c67",
+    "bunyan": "github:DefinitelyTyped/DefinitelyTyped/bunyan/bunyan.d.ts#4ec3c5bf291bc02f49eb30c1077340b235165c67",
+    "restify": "github:DefinitelyTyped/DefinitelyTyped/restify/restify.d.ts#4ec3c5bf291bc02f49eb30c1077340b235165c67",
+    "mocha": "github:DefinitelyTyped/DefinitelyTyped/mocha/mocha.d.ts#d22516f9f089de107d7e7d5938566377370631f6",
+    "chai": "github:DefinitelyTyped/DefinitelyTyped/chai/chai.d.ts#d22516f9f089de107d7e7d5938566377370631f6"
+  }
+}
