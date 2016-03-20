@@ -4,7 +4,7 @@ import restify = require("restify");
 import URL = require("url");
 
 var log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 
 // Simple service schema declaration.
@@ -19,22 +19,22 @@ let serviceSchema = [
 // Configuration.
 // ----------------------------------------------------------------------------
 
-let sbHost: string = "http://127.0.0.1:8000";
+let sbHost: string = "http://127.0.0.1:9000";
 
 let cacheStageHost: string = "127.0.0.1";
-let cacheStagePort: string = "8001";
+let cacheStagePort: string = "9001";
 let cacheStageUrl: string = "http://" + cacheStageHost + ":" + cacheStagePort;
 let cacheStageId: string = "CacheStage";
 let cacheStageResource: string = "/lookup/cache";
 
 let dbStageHost: string = "127.0.0.1";
-let dbStagePort: string = "8002";
+let dbStagePort: string = "9002";
 let dbStageUrl: string = "http://" + dbStageHost + ":" + dbStagePort;
 let dbStageId: string = "DbStage";
 let dbStageResource: string = "/lookup/database";
 
 let processingStageHost: string = "127.0.0.1";
-let processingStagePort: string = "8003";
+let processingStagePort: string = "9003";
 let processingStageUrl: string = "http://" + processingStageHost + ":" + processingStagePort;
 let processingStageId: string = "ProcessingStage";
 let processingStageResource: string = "/lookup/processing";
@@ -343,14 +343,17 @@ cacheStage.forward<CacheStage>(keyToLookup, cacheStageId, getDataAndProcess);
 // ----------------------------------------------------------------------------
 // Verify code ran with test suite.
 // ----------------------------------------------------------------------------
-import chai = require('chai');
+
+import chai = require('chai'); 
 var expect = chai.expect;
 
 describe('Test experimental Continuum API', () => {
     describe('Verify `ProcessingStage` processed some data', () => {
         it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
-            expect(ProcessingStage.thingWasProcessed).to.equals(true);
-            done();
+            setTimeout(() => {
+                expect(ProcessingStage.thingWasProcessed).to.equals(true);
+                done();
+            }, 250);
         });
     });
 });

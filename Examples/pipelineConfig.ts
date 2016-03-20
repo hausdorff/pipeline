@@ -4,7 +4,7 @@ import restify = require('restify');
 var log = require('winston');
 log.level = 'error';
 
-export var pipelineConfigServerPort = 9000;
+export var pipelineConfigServerPort = 8001;
 export var frontdoorRestPort = 8000;
 
 export var frontdoorStage = 'frontdoorStage';
