@@ -4,7 +4,7 @@ import URL = require("url");
 import sb = require("../src/core/ServiceBroker");
 
 var log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 
 // ----------------------------------------------------------------------------
@@ -61,10 +61,11 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 
 abstract class Stage {
     constructor(private serviceBrokerUrl,
-                private route: string) {
+                private route: string, private stageId : string) {
         this.sbc = new sb.ServiceBrokerClient(serviceBrokerUrl);
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
+        
 
         this.server.post(
             route,
@@ -95,15 +96,15 @@ abstract class Stage {
         // TODO: Add John's hack for getting the current IP here.
     }
 
-    public forward<T extends Stage>(params: any, id: string,
+    public forward<T extends Stage>(toStage : T, params: any, 
                                     c: sb.Continuation<T>) {
-        return this.forwardWithSelector<T>(params, id, ss => ss[0], c);
+        return this.forwardWithSelector<T>(toStage, params, ss => ss[0], c);
     }
 
-    public forwardWithSelector<T extends Stage>(parameters: any, id: string,
+    public forwardWithSelector<T extends Stage>(toStage : T, parameters: any,
                                                 s: sb.Selector,
                                                 c: sb.Continuation<T>) {
-        let [machines, resource] = this.sbc.resolve(id);
+        let [machines, resource] = this.sbc.resolve(toStage.stageId);
         let machine = s(machines);
 
         let params = this.merge(
@@ -213,13 +214,13 @@ function getDataAndProcess(cs: CacheStage, params: any): void {
                  "' found; forwarding value '" + dataToProcess.value +
                  "' to processing node");
 
-        cs.forward<ProcessingStage>(dataToProcess, processingStageId, (ps, state) => ps.processData(ps,state));
+        cs.forward(processingStage, dataToProcess, (ps, state) => ps.processData(ps,state));
                                     
     } else {
         log.info("CacheStage: Did not find key '" + params.key +
                  "' in cache; forwarding request to database node");
 
-        cs.forward<DbStage>(params, dbStageId, (dbs, state) => dbs.cacheAndProcessData(dbs,state));
+        cs.forward(dbStage, params, (dbs, state) => dbs.cacheAndProcessData(dbs,state));
     }
 };
 
@@ -237,8 +238,8 @@ function cacheAndProcessData(dbs: DbStage, params: any): void {
     // NOTE: We'll want to replace the "bogus_value_for_now" below with v when
     // we get Babel integration and can finally lift the environment out and
     // serialize that too.
-    dbs.forward<CacheStage>(dataToProcess, cacheStageId, (cs, p) => { cs.set(params, "bogus_value_for_now"); });
-    dbs.forward<ProcessingStage>(dataToProcess, processingStageId, (ps, p) => { ps.processData(ps,p); });
+    dbs.forward(cacheStage, dataToProcess, (cs, p) => { cs.set(params, "bogus_value_for_now"); });
+    dbs.forward(processingStage, dataToProcess, (ps, p) => { ps.processData(ps,p); });
 };
 
 // Runs on `ProcessingStage`. Processes a piece of data it recieves.
@@ -302,14 +303,13 @@ let configuration = sb.ServiceConfigutor.fromFile(
 let sbs = new sb.ServiceBrokerServer(configuration);
 sbs.listen(ServiceBrokerPort);
 
-let cacheStage = new CacheStage(ServiceBrokerUrl, cacheStageResource);
+let cacheStage = new CacheStage(ServiceBrokerUrl, cacheStageResource, cacheStageId);
 cacheStage.listen(cacheStagePort);
 
-let dbStage = new DbStage(ServiceBrokerUrl, dbStageResource);
+let dbStage = new DbStage(ServiceBrokerUrl, dbStageResource, dbStageId);
 dbStage.listen(dbStagePort);
 
-let processingStage = new ProcessingStage(ServiceBrokerUrl,
-                                          processingStageResource);
+let processingStage = new ProcessingStage(ServiceBrokerUrl,processingStageResource, processingStageId);
 processingStage.listen(processingStagePort);
 
 // ----------------------------------------------------------------------------
@@ -323,7 +323,7 @@ describe('Test experimental Continuum API', () => {
     describe('Verify `ProcessingStage` processed some data', () => {
         it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
             let keyToLookup = { key: "your_favorite_key" }
-            cacheStage.forward<CacheStage>(keyToLookup, cacheStageId, (cs, state) => cs.getDataAndProcess(cs, state));
+            cacheStage.forward(cacheStage, keyToLookup, (cs, state) => cs.getDataAndProcess(cs, state));
             // HACK. `setTimeout`, used here to ensure service is invoked
             // before we check whether it was successful.
             setTimeout(() => {
