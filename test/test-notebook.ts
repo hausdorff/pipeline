@@ -1,6 +1,7 @@
 import restify = require("restify");
 import URL = require("url");
-import fs = require("fs");
+
+import sb = require("../src/core/ServiceBroker");
 
 var log = require('winston');
 log.level = 'error';
@@ -9,11 +10,8 @@ log.level = 'error';
 // ----------------------------------------------------------------------------
 // Configuration.
 // ----------------------------------------------------------------------------
-
-let sbHost: string = "127.0.0.1";
-let sbPort: string = "9000";
-let sbUrl: string = "http://" + sbHost + ":" + sbPort;
-let sbResource: string = "/broker/stages"
+const ServiceBrokerPort: string = "9000";
+const ServiceBrokerUrl: string = "http://127.0.0.1" + ":" + ServiceBrokerPort;
 
 let cacheStageHost: string = "127.0.0.1";
 let cacheStagePort: string = "9001";
@@ -32,153 +30,6 @@ let processingStagePort: string = "9003";
 let processingStageUrl: string = "http://" + processingStageHost + ":" + processingStagePort;
 let processingStageId: string = "ProcessingStage";
 let processingStageResource: string = "/lookup/processing";
-
-
-// ----------------------------------------------------------------------------
-// Stage configuration.
-// ----------------------------------------------------------------------------
-class ServiceConfigutor {
-    constructor() { }
-
-    public get(id: string): [Machine[], string] {
-        return this.stages[id];
-    }
-
-    private set(id: string, stage: [Machine[], string]): void {
-        this.stages[id] = stage;
-    }
-
-    public toJson(): string {
-        let configurationJson = { };
-
-        for (let id in this.stages) {
-            let stage: [Machine[], string] = this.stages[id];
-            let machines: Machine[] = stage[0];
-
-            let machinesJson = [];
-            for (let machine of machines) {
-                machinesJson.push(machine.url);
-            }
-
-            var stageJson = {
-                machines: machinesJson,
-                route: stage[1]
-            };
-
-            configurationJson[id] = stageJson;
-        }
-
-        return JSON.stringify(configurationJson, null, 2);
-    }
-
-    public static fromJson(config: string): ServiceConfigutor {
-        let stages = JSON.parse(config);
-        let sbc = new ServiceConfigutor();
-
-        for (let stageId in stages) {
-            let stage = stages[stageId];
-
-            let machines: Machine[] = [];
-            for (let machineUrl of stage["machines"]) {
-                var machine: Machine = {
-                    url: machineUrl,
-                    client: restify.createJsonClient({ url: machineUrl })
-                };
-
-                machines.push(machine);
-            }
-
-            sbc.set(stageId, [machines, stage["route"]]);
-        }
-
-        return sbc;
-    }
-
-    public static fromFile(filename: string, encoding: string): ServiceConfigutor {
-        let contents = fs.readFileSync(filename, "utf8");
-        return ServiceConfigutor.fromJson(contents);
-    }
-
-    private stages: { [id: string]: [Machine[], string] } = { };
-}
-
-// ----------------------------------------------------------------------------
-// Simple broker server.
-// ----------------------------------------------------------------------------
-
-class ServiceBrokerServer {
-    constructor(configuration: ServiceConfigutor) {
-        this.configuration = configuration;
-        this.server = restify.createServer({});
-        this.server.use(restify.bodyParser({ mapParams: true }));
-        this.server.get(
-            sbResource,
-            (req, res, next) => {
-                res.send(this.configuration.toJson());
-                return next();
-            });
-    }
-
-    public listen(...args: any[]) {
-        this.port = args[0];
-        this.server.listen.apply(this.server, args);
-
-        log.info("ServiceBrokerServer: listening on port " + this.port +
-                 " for resource " + sbResource);
-    }
-
-    private configuration: ServiceConfigutor;
-    private port: string
-    private server: restify.Server;
-}
-
-// ----------------------------------------------------------------------------
-// Simple service broker client.
-//
-// Talks to the `ServiceBrokerServer`, both to discover the types which
-// machines which `Stage`s run on, and what types they export.
-// ----------------------------------------------------------------------------
-
-type Continuation<T> = (stage: T, params: any) => void;
-type Selector = (machines: Machine[]) => Machine
-type Machine = { url: string, client: restify.Client };
-
-class ServiceBrokerClient {
-    constructor(serviceBrokerServerUrl: string) {
-        this.serviceBrokerServerUrl = serviceBrokerServerUrl;
-        this.client = restify.createJsonClient({
-            url: serviceBrokerServerUrl,
-            version: '*'
-        });
-
-        this.configure();
-    }
-
-    public resolve(id: string): [Machine[], string] {
-        return this.stages.get(id);
-    }
-
-    private configure() {
-        this.client.get(
-            sbResource,
-            (err, req, res, obj) => {
-                if (err) {
-                    log.error("ServiceBrokerClient: error connecting to",
-                              "ServiceBrokerServer: ", err);
-                }
-
-                log.info("ServiceBrokerClient: Successfully connected to ",
-                         "ServiceBrokerServer at: ",
-                         this.serviceBrokerServerUrl);
-
-                this.stages = ServiceConfigutor.fromJson(obj.toString());
-            });
-    }
-
-    private serviceBrokerServerUrl: string;
-    private client: restify.Client;
-    private stages: ServiceConfigutor;
-}
 
 
 // ----------------------------------------------------------------------------
@@ -209,8 +60,9 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 // ----------------------------------------------------------------------------
 
 abstract class Stage {
-    constructor(private route: string) {
-        this.sbc = new ServiceBrokerClient(sbUrl);
+    constructor(private serviceBrokerUrl,
+                private route: string) {
+        this.sbc = new sb.ServiceBrokerClient(serviceBrokerUrl);
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
 
@@ -244,12 +96,13 @@ abstract class Stage {
     }
 
     public forward<T extends Stage>(params: any, id: string,
-                                    c: Continuation<T>) {
+                                    c: sb.Continuation<T>) {
         return this.forwardWithSelector<T>(params, id, ss => ss[0], c);
     }
 
     public forwardWithSelector<T extends Stage>(parameters: any, id: string,
-                                                s: Selector, c: Continuation<T>) {
+                                                s: sb.Selector,
+                                                c: sb.Continuation<T>) {
         let [machines, resource] = this.sbc.resolve(id);
         let machine = s(machines);
 
@@ -265,11 +118,12 @@ abstract class Stage {
             params,
             (err, req, res, obj) => {
                 if (err) {
-                    log.error('Error sending to ', machine.url, resource, ':\n', err);
+                    log.error('Error sending to ', machine.url, resource, ':\n',
+                              err);
                     throw 'Send error';
                 }
                 if (res.statusCode == 201) {
-                    log.info('Request complete for', sbHost, resource);
+                    log.info('Request complete for', resource);
                     // very important - do nothing... the response will be sent
                     // back via the pipeline. This is just acknowlegement that
                     // the next stage got the request.  
@@ -279,7 +133,8 @@ abstract class Stage {
             });
     }
 
-    private handleCode(code: string, params: Object, sbc: ServiceBrokerClient) {
+    private handleCode(code: string, params: Object,
+                       sbc: sb.ServiceBrokerClient) {
         if (!code) return;
 
         try {
@@ -304,7 +159,7 @@ abstract class Stage {
 
     private port: string
     private server: restify.Server;
-    private sbc: ServiceBrokerClient;
+    private sbc: sb.ServiceBrokerClient;
 }
 
 
@@ -415,19 +270,20 @@ function processData(pss: ProcessingStage, params: any): void {
 // ----------------------------------------------------------------------------
 
 // Set up a little cluster.
-let configuration = ServiceConfigutor.fromFile(
+let configuration = sb.ServiceConfigutor.fromFile(
     "./test/config/simpleOneboxConfig.json",
     "utf8");
-let sbs = new ServiceBrokerServer(configuration);
-sbs.listen(sbPort);
+let sbs = new sb.ServiceBrokerServer(configuration);
+sbs.listen(ServiceBrokerPort);
 
-let cacheStage = new CacheStage(cacheStageResource);
+let cacheStage = new CacheStage(ServiceBrokerUrl, cacheStageResource);
 cacheStage.listen(cacheStagePort);
 
-let dbStage = new DbStage(dbStageResource);
+let dbStage = new DbStage(ServiceBrokerUrl, dbStageResource);
 dbStage.listen(dbStagePort);
 
-let processingStage = new ProcessingStage(processingStageResource);
+let processingStage = new ProcessingStage(ServiceBrokerUrl,
+                                          processingStageResource);
 processingStage.listen(processingStagePort);
 
 // ----------------------------------------------------------------------------
