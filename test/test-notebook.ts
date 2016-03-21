@@ -5,14 +5,6 @@ var log = require('winston');
 log.level = 'info';
 
 
-// Simple service schema declaration.
-let serviceSchema = [
-    {
-        id: "Hello"
-    }
-];
-
-
 // ----------------------------------------------------------------------------
 // Configuration.
 // ----------------------------------------------------------------------------
@@ -51,10 +43,6 @@ type Machine = { url: string, client: restify.Client };
 
 class ServiceBrokerClient {
     constructor() {
-        // TODO: Figure out how stage instantiation works. This is the client,
-        // so the references below to `cacheStage` and so on can't be
-        // references to running stages, like they are here. For now this is
-        // fine, but this will have to change.
         this.stages[cacheStageId] = [
             [{
                 url: cacheStageUrl,
