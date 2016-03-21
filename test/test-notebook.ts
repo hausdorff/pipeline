@@ -1,5 +1,6 @@
 import restify = require("restify");
 import URL = require("url");
+import fs = require("fs");
 
 var log = require('winston');
 log.level = 'error';
@@ -34,14 +35,88 @@ let processingStageResource: string = "/lookup/processing";
 
 
 // ----------------------------------------------------------------------------
+// Stage configuration.
+// ----------------------------------------------------------------------------
+class ServiceConfigutor {
+    constructor() { }
+
+    public get(id: string): [Machine[], string] {
+        return this.stages[id];
+    }
+
+    private set(id: string, stage: [Machine[], string]): void {
+        this.stages[id] = stage;
+    }
+
+    public toJson(): string {
+        let configurationJson = { };
+
+        for (let id in this.stages) {
+            let stage: [Machine[], string] = this.stages[id];
+            let machines: Machine[] = stage[0];
+
+            let machinesJson = [];
+            for (let machine of machines) {
+                machinesJson.push(machine.url);
+            }
+
+            var stageJson = {
+                machines: machinesJson,
+                route: stage[1]
+            };
+
+            configurationJson[id] = stageJson;
+        }
+
+        return JSON.stringify(configurationJson, null, 2);
+    }
+
+    public static fromJson(config: string): ServiceConfigutor {
+        let stages = JSON.parse(config);
+        let sbc = new ServiceConfigutor();
+
+        for (let stageId in stages) {
+            let stage = stages[stageId];
+
+            let machines: Machine[] = [];
+            for (let machineUrl of stage["machines"]) {
+                var machine: Machine = {
+                    url: machineUrl,
+                    client: restify.createJsonClient({ url: machineUrl })
+                };
+
+                machines.push(machine);
+            }
+
+            sbc.set(stageId, [machines, stage["route"]]);
+        }
+
+        return sbc;
+    }
+
+    public static fromFile(filename: string, encoding: string): ServiceConfigutor {
+        let contents = fs.readFileSync(filename, "utf8");
+        return ServiceConfigutor.fromJson(contents);
+    }
+
+    private stages: { [id: string]: [Machine[], string] } = { };
+}
+
+// ----------------------------------------------------------------------------
 // Simple broker server.
 // ----------------------------------------------------------------------------
 
 class ServiceBrokerServer {
-    constructor() {
+    constructor(configuration: ServiceConfigutor) {
+        this.configuration = configuration;
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
-        this.server.get(sbResource, this.stages);
+        this.server.get(
+            sbResource,
+            (req, res, next) => {
+                res.send(this.configuration.toJson());
+                return next();
+            });
     }
 
     public listen(...args: any[]) {
@@ -52,11 +127,7 @@ class ServiceBrokerServer {
                  " for resource " + sbResource);
     }
 
-    private stages(req, res, next) {
-        res.send("Hello world!");
-        return next();
-    }
-
+    private configuration: ServiceConfigutor;
     private port: string
     private server: restify.Server;
 }
@@ -84,7 +155,7 @@ class ServiceBrokerClient {
     }
 
     public resolve(id: string): [Machine[], string] {
-        return this.stages[id];
+        return this.stages.get(id);
     }
 
     private configure() {
@@ -99,34 +170,14 @@ class ServiceBrokerClient {
                 log.info("ServiceBrokerClient: Successfully connected to ",
                          "ServiceBrokerServer at: ",
                          this.serviceBrokerServerUrl);
-            });
 
-        this.stages[cacheStageId] = [
-            [{
-                url: cacheStageUrl,
-                client: restify.createJsonClient({url: cacheStageUrl})
-            }],
-            cacheStageResource
-        ];
-        this.stages[dbStageId] = [
-            [{
-                url: dbStageUrl,
-                client: restify.createJsonClient({url: dbStageUrl})
-            }],
-            dbStageResource
-        ];
-        this.stages[processingStageId] = [
-            [{
-                url: processingStageUrl,
-                client: restify.createJsonClient({url: processingStageUrl})
-            }],
-            processingStageResource
-        ];
+                this.stages = ServiceConfigutor.fromJson(obj.toString());
+            });
     }
 
     private serviceBrokerServerUrl: string;
     private client: restify.Client;
-    private stages: { [id: string]: [Machine[], string] } = { };
+    private stages: ServiceConfigutor;
 }
 
 
@@ -364,7 +415,10 @@ function processData(pss: ProcessingStage, params: any): void {
 // ----------------------------------------------------------------------------
 
 // Set up a little cluster.
-let sbs = new ServiceBrokerServer();
+let configuration = ServiceConfigutor.fromFile(
+    "./test/config/simpleOneboxConfig.json",
+    "utf8");
+let sbs = new ServiceBrokerServer(configuration);
 sbs.listen(sbPort);
 
 let cacheStage = new CacheStage(cacheStageResource);
@@ -376,12 +430,6 @@ dbStage.listen(dbStagePort);
 let processingStage = new ProcessingStage(processingStageResource);
 processingStage.listen(processingStagePort);
 
-// This request will look up the value for `key` below, process it, and cache
-// it if necessary.
-let keyToLookup = { key: "your_favorite_key" }
-cacheStage.forward<CacheStage>(keyToLookup, cacheStageId, getDataAndProcess);
-
-
 // ----------------------------------------------------------------------------
 // Verify code ran with test suite.
 // ----------------------------------------------------------------------------
@@ -389,13 +437,27 @@ cacheStage.forward<CacheStage>(keyToLookup, cacheStageId, getDataAndProcess);
 import chai = require('chai'); 
 var expect = chai.expect;
 
+// HACK. `setTimeout` used here to ensure the service is configured before we
+// attempt to invoke it.
+setTimeout(
+    () => {
+        // This request will look up the value for `key` below, process it, and
+        // cache it if necessary.
+        let keyToLookup = { key: "your_favorite_key" }
+        cacheStage.forward<CacheStage>(keyToLookup, cacheStageId,
+                                       getDataAndProcess);
+    },
+    250);
+
 describe('Test experimental Continuum API', () => {
     describe('Verify `ProcessingStage` processed some data', () => {
         it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
+            // HACK. `setTimeout`, used here to ensure service is invoked
+            // before we check whether it was successful.
             setTimeout(() => {
                 expect(ProcessingStage.thingWasProcessed).to.equals(true);
                 done();
-            }, 250);
+            }, 500);
         });
     });
 });

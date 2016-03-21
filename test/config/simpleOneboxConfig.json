@@ -1,0 +1,20 @@
+{
+  "CacheStage": {
+    "machines": [
+      "http://127.0.0.1:9001"
+    ],
+    "route": "/lookup/cache"
+  },
+  "DbStage": {
+    "machines": [
+      "http://127.0.0.1:9002"
+    ],
+    "route": "/lookup/database"
+  },
+  "ProcessingStage": {
+    "machines": [
+      "http://127.0.0.1:9003"
+    ],
+    "route": "/lookup/processing"
+  }
+}
