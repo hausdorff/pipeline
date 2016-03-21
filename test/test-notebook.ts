@@ -1,5 +1,3 @@
-import * as ts from "typescript";
-
 import restify = require("restify");
 import URL = require("url");
 
@@ -192,11 +190,8 @@ abstract class Stage {
         try {
             // Wrap function in something with parameters that have known names,
             // so that we can call it easily.
-            let toEval = "(function (stage: Stage, params) { var f = " +
+            let toEval = "(function (stage, params) { var f = " +
                 code.replace(/^ *"use strict";/,"") + "; f(stage, params); })";
-
-            toEval = ts.transpile(
-                toEval.toString(), { module: ts.ModuleKind.CommonJS });
 
             var f = eval(toEval);
 
