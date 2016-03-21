@@ -2,14 +2,17 @@ import restify = require("restify");
 import URL = require("url");
 
 var log = require('winston');
-log.level = 'info';
+log.level = 'error';
 
 
 // ----------------------------------------------------------------------------
 // Configuration.
 // ----------------------------------------------------------------------------
 
-let sbHost: string = "http://127.0.0.1:9000";
+let sbHost: string = "127.0.0.1";
+let sbPort: string = "9000";
+let sbUrl: string = "http://" + sbHost + ":" + sbPort;
+let sbResource: string = "/broker/stages"
 
 let cacheStageHost: string = "127.0.0.1";
 let cacheStagePort: string = "9001";
@@ -31,6 +34,34 @@ let processingStageResource: string = "/lookup/processing";
 
 
 // ----------------------------------------------------------------------------
+// Simple broker server.
+// ----------------------------------------------------------------------------
+
+class ServiceBrokerServer {
+    constructor() {
+        this.server = restify.createServer({});
+        this.server.use(restify.bodyParser({ mapParams: true }));
+        this.server.get(sbResource, this.stages);
+    }
+
+    public listen(...args: any[]) {
+        this.port = args[0];
+        this.server.listen.apply(this.server, args);
+
+        log.info("ServiceBrokerServer: listening on port " + this.port +
+                 " for resource " + sbResource);
+    }
+
+    private stages(req, res, next) {
+        res.send("Hello world!");
+        return next();
+    }
+
+    private port: string
+    private server: restify.Server;
+}
+
+// ----------------------------------------------------------------------------
 // Simple service broker client.
 //
 // Talks to the `ServiceBrokerServer`, both to discover the types which
@@ -42,7 +73,34 @@ type Selector = (machines: Machine[]) => Machine
 type Machine = { url: string, client: restify.Client };
 
 class ServiceBrokerClient {
-    constructor() {
+    constructor(serviceBrokerServerUrl: string) {
+        this.serviceBrokerServerUrl = serviceBrokerServerUrl;
+        this.client = restify.createJsonClient({
+            url: serviceBrokerServerUrl,
+            version: '*'
+        });
+
+        this.configure();
+    }
+
+    public resolve(id: string): [Machine[], string] {
+        return this.stages[id];
+    }
+
+    private configure() {
+        this.client.get(
+            sbResource,
+            (err, req, res, obj) => {
+                if (err) {
+                    log.error("ServiceBrokerClient: error connecting to",
+                              "ServiceBrokerServer: ", err);
+                }
+
+                log.info("ServiceBrokerClient: Successfully connected to ",
+                         "ServiceBrokerServer at: ",
+                         this.serviceBrokerServerUrl);
+            });
+
         this.stages[cacheStageId] = [
             [{
                 url: cacheStageUrl,
@@ -66,10 +124,8 @@ class ServiceBrokerClient {
         ];
     }
 
-    public resolve(id: string): [Machine[], string] {
-        return this.stages[id];
-    }
-
+    private serviceBrokerServerUrl: string;
+    private client: restify.Client;
     private stages: { [id: string]: [Machine[], string] } = { };
 }
 
@@ -103,7 +159,7 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 
 abstract class Stage {
     constructor(private route: string) {
-        this.sbc = new ServiceBrokerClient();
+        this.sbc = new ServiceBrokerClient(sbUrl);
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
 
@@ -308,6 +364,9 @@ function processData(pss: ProcessingStage, params: any): void {
 // ----------------------------------------------------------------------------
 
 // Set up a little cluster.
+let sbs = new ServiceBrokerServer();
+sbs.listen(sbPort);
+
 let cacheStage = new CacheStage(cacheStageResource);
 cacheStage.listen(cacheStagePort);
 
