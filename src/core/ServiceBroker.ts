@@ -8,7 +8,7 @@ log.level = 'error';
 let sbResource: string = "/broker/stages";
 
 
-export type Continuation<T> = (stage: T, params: any) => void;
+export type Continuation<T> = (continuum : any, stage: T, params: any) => void;
 export type Selector = (machines: Machine[]) => Machine
 export type Machine = { url: string, client: restify.Client };
 
