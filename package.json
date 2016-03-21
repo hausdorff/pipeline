@@ -4,7 +4,7 @@
   "description": "Brainstorming on how to build request processing pipelines in Node",
   "main": "./dist/Examples/server.js",
   "scripts": {
-    "test": "mocha --recursive dist/test",
+    "test": "npm run build && mocha --recursive dist/test",
     "build": "tsc -p .",
     "watch": "tsc -p . --watch",
     "typings": "typings install"
