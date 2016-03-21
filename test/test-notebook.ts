@@ -97,7 +97,7 @@ abstract class Stage {
     }
 
     public forward<T extends Stage>(toStage: T, params: any,
-        c: sb.Continuation<T>) {
+        c: (continuum : ContinuumInterfaceForStage, stage : T, params : any ) => void) { // Hack for now.  The continuum should be typed for the stage
         return this.forwardWithSelector<T>(toStage, params, ss => ss[0], c);
     }
 
@@ -165,7 +165,7 @@ abstract class Stage {
 
 abstract class ContinuumBase {
     public forward<T extends Stage>(toStage: T, params: any,
-        c: sb.Continuation<T>) {
+        c: (continuum : ContinuumInterfaceForStage, stage: T, param : any) => void) { // HACK for now.  Should be parameterized for a continuum at the current stage
         return toStage.forward<T>(toStage, params, c);
     }
 }
