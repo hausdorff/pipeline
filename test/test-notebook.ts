@@ -319,27 +319,17 @@ processingStage.listen(processingStagePort);
 import chai = require('chai'); 
 var expect = chai.expect;
 
-// HACK. `setTimeout` used here to ensure the service is configured before we
-// attempt to invoke it.
-setTimeout(
-    () => {
-        // This request will look up the value for `key` below, process it, and
-        // cache it if necessary.
-        let keyToLookup = { key: "your_favorite_key" }
-        cacheStage.forward<CacheStage>(keyToLookup, cacheStageId,
-                                       getDataAndProcess);
-    },
-    250);
-
 describe('Test experimental Continuum API', () => {
     describe('Verify `ProcessingStage` processed some data', () => {
         it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
+            let keyToLookup = { key: "your_favorite_key" }
+            cacheStage.forward<CacheStage>(keyToLookup, cacheStageId, (cs, state) => cs.getDataAndProcess(cs, state));
             // HACK. `setTimeout`, used here to ensure service is invoked
             // before we check whether it was successful.
             setTimeout(() => {
                 expect(ProcessingStage.thingWasProcessed).to.equals(true);
                 done();
-            }, 500);
+            }, 250);
         });
     });
 });
