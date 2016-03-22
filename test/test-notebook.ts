@@ -4,7 +4,7 @@ import URL = require("url");
 import sb = require("../src/core/ServiceBroker");
 
 var log = require('winston');
-log.level = 'info';
+log.level = 'error';
 
 
 // ----------------------------------------------------------------------------
@@ -83,7 +83,7 @@ abstract class Stage {
                 delete params.code;
 
                 if (code) {
-                    this.handleCode( code, params);
+                    this.handleCode(code, params);
                 }
 
                 return next();
@@ -227,13 +227,13 @@ class Continuum extends ContinuumBase implements ContinuumInterfaceForStage {
 //
 // The application developer writes this code, which is transmitted to the
 // provisioner, so that it can be run on boxes in the cluster.
+//
+// NOTICE - these functions NOW only rely on parameters passed in to the continuation.  No globals.
+//
 // ----------------------------------------------------------------------------
 
 // Runs on `CacheStage`. Checks cache for a key; if present, forwards the value
 // on to `ProcessingStage`. If it is not, we forward a request to the database.
-
-// NOTICE - these functions NOW only rely on parameters passed in to the continuation.  No globals.
-
 function getDataAndProcess(continuum: ContinuumInterfaceForStage, cs: CacheStageInterface, params: any): void {
     if (cs.has(params.key)) {
         let dataToProcess = { value: cs.get(params.key) };
@@ -292,7 +292,7 @@ class CacheStage extends Stage implements CacheStageInterface {
         return true;
     }
 
-    public getDataAndProcess = getDataAndProcess; // Pick up global function and hang off interface to stage
+    public getDataAndProcess = getDataAndProcess; // Pick up global function and hang off interface to stage - could also be defined inline.
 
     private store: { [k: string]: string; } = {};
 }
@@ -314,7 +314,11 @@ class ProcessingStage extends Stage implements ProcessingStageInterface {
         // Allow tests to verify function ran.
         this.thingWasProcessed = true;
     }
-    public processData = processData; // Pick up global function and hang off interface to stage
+
+    public processData(c: ContinuumInterfaceForStage, pss: ProcessingStageInterface, params: any) {  // Demonstrating that implementations can be inline too
+        log.info("ProcessingStage: processing data '" + params.value + "'");
+        pss.doThing(params.value);
+    };
 }
 
 
