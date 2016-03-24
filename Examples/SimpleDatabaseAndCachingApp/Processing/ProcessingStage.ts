@@ -1,17 +1,16 @@
-import * as stage from "../../../src/core/Stage";
 import * as continua from "../generated";
 
 var log = require('winston');
 log.level = 'error';
 
 
-const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8000";
+const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
 const resourcePath = process.env.resourcePath = "/continuum";
 const stageId = "processingStage";
-const port = process.env.port || 8001;
+const port = process.env.port || 8083;
 
 
-export class ProcessingStage extends stage.Stage implements continua.ProcessingStageInterface {
+export class ProcessingStage extends continua.Stage implements continua.ProcessingStageInterface {
     public thingWasProcessed: boolean = false; // Used for tests.
 
     public doThing(v: string) {
@@ -31,7 +30,7 @@ function processData(c: continua.Continuum, pss: continua.ProcessingStageInterfa
 
 var continuum = new continua.Continuum(serviceBrokerUrl);
 
-var cacheStage = new ProcessingStage(continuum, resourcePath, stageId);
-cacheStage.listen(port);
+var processingStage = new ProcessingStage(continuum, resourcePath, stageId);
+processingStage.listen(port);
 
 export var ready = true;

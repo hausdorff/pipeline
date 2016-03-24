@@ -1,13 +1,17 @@
-import * as stage from "../../../src/core/Stage";
 import * as continua from "../generated";
 
 var log = require('winston');
 log.level = 'error';
 
+const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
+const resourcePath = process.env.resourcePath = "/continuum";
+const stageId = "dbStage";
+const port = process.env.port || 8082;
+
 const logDbGet = (k, v) => `DbStage: Retrieved value '${v}' for key '${k}'; forwarding to both \`CacheStage\` and \`ProcessingStage\``;
 
 
-export class DbStage extends stage.Stage implements continua.DbStageInterface {
+export class DbStage extends continua.Stage implements continua.DbStageInterface {
     public getThing(k: string): string {
         return "cow";
     }
@@ -29,3 +33,10 @@ function cacheAndProcessData(continuum: continua.Continuum, dbs: continua.DbStag
     continuum.forward(continuum.processingStage, dataToProcess,
                     (c, ps, p) => { ps.processData(c, ps, p); });
 };
+
+var continuum = new continua.Continuum(serviceBrokerUrl);
+
+var dbStage = new DbStage(continuum, resourcePath, stageId);
+dbStage.listen(port);
+
+export var ready = true;
