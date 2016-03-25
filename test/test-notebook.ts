@@ -133,10 +133,12 @@ describe('Test experimental Continuum API', () => {
                 version: '*'
             });
 
+            client.get("/api/test", (err, req, res) => {
+                    // TODO: verify the thingWasProcessed member actually is true.
+            });
+
             setTimeout(() => {
-                client.get("/api/test", (err, req, res) => {
-                    done();
-                });
+                done();
             },
             250);
         });
