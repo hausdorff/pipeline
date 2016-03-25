@@ -1,9 +1,12 @@
 import * as continua from "../../src/core/Continuum";
 import * as stage from "../../src/core/Stage";
 import * as sb from "../../src/core/ServiceBroker";
+import * as cs from "./Cache/CacheStage";
+import * as dbs from "./Database/DbStage";
+import * as pss from "./Processing/ProcessingStage";
 
 var log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 export * from "../../src/core/Stage";
 
@@ -54,3 +57,10 @@ export class Continuum extends continua.ContinuumBase {
             c);
     }
 }
+
+
+const ServiceBrokerPort: string = "8080";
+const ServiceBrokerUrl = process.env.serviceBrokerUrl || "http://127.0.0.1" + ":" + ServiceBrokerPort;
+
+export const continuum = new Continuum(ServiceBrokerUrl);
+

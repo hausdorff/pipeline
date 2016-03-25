@@ -62,6 +62,7 @@ export class ServiceBrokerClient {
     }
 
     public resolve(id: string): [Machine[], string] {
+        const s = this.stages.get(id)
         return this.stages.get(id);
     }
 

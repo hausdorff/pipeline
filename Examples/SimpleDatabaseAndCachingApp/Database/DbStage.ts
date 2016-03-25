@@ -5,7 +5,7 @@ log.level = 'error';
 
 const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
 const resourcePath = process.env.resourcePath = "/continuum";
-const stageId = "dbStage";
+const stageId = "DbStage";
 const port = process.env.port || 8082;
 
 const logDbGet = (k, v) => `DbStage: Retrieved value '${v}' for key '${k}'; forwarding to both \`CacheStage\` and \`ProcessingStage\``;
@@ -34,9 +34,11 @@ function cacheAndProcessData(continuum: continua.Continuum, dbs: continua.DbStag
                     (c, ps, p) => { ps.processData(c, ps, p); });
 };
 
-var continuum = new continua.Continuum(serviceBrokerUrl);
+// var continuum = new continua.Continuum(serviceBrokerUrl);
 
-var dbStage = new DbStage(continuum, resourcePath, stageId);
+export var dbStage = new DbStage(continua.continuum, resourcePath, stageId);
 dbStage.listen(port);
+
+// continua.continuum.dbStage = dbStage;
 
 export var ready = true;

@@ -6,7 +6,7 @@ log.level = 'error';
 
 const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
 const resourcePath = process.env.resourcePath = "/continuum";
-const stageId = "processingStage";
+const stageId = "ProcessingStage";
 const port = process.env.port || 8083;
 
 
@@ -18,19 +18,22 @@ export class ProcessingStage extends continua.Stage implements continua.Processi
 
         // Allow tests to verify function ran.
         this.thingWasProcessed = true;
+        log.error(this.thingWasProcessed);
     }
 
     public processData = processData;
 }
 
 function processData(c: continua.Continuum, pss: continua.ProcessingStageInterface, params: any) {
-    c.log.info("ProcessingStage: processing data '" + params.value + "'");
+    c.log.error("ProcessingStage: processing data '" + params.value + "'");
     pss.doThing(params.value);
 };
 
-var continuum = new continua.Continuum(serviceBrokerUrl);
+// var continuum = new continua.Continuum(serviceBrokerUrl);
 
-var processingStage = new ProcessingStage(continuum, resourcePath, stageId);
+export var processingStage = new ProcessingStage(continua.continuum, resourcePath, stageId);
 processingStage.listen(port);
+
+// continua.continuum.processingStage = processingStage;
 
 export var ready = true;
