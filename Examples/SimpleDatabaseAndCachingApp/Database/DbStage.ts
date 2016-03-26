@@ -3,7 +3,7 @@ import * as continua from "../generated";
 var log = require('winston');
 log.level = 'error';
 
-const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
+const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8090";
 const resourcePath = process.env.resourcePath = "/continuum";
 const stageId = "DbStage";
 const port = process.env.port || 8082;

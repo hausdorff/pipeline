@@ -2,7 +2,7 @@ import fs = require("fs");
 import restify = require("restify");
 
 let log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 
 let sbResource: string = "/broker/stages";
@@ -50,6 +50,8 @@ export class ServiceBrokerServer {
 // machines which `Stage`s run on, and what types they export.
 // ----------------------------------------------------------------------------
 
+const sbcCouldNotConnectToSbs = (url, err) => `ServiceBrokerClient: error connecting to ServiceBrokerServer at url '${url}': ${err}`;
+
 export class ServiceBrokerClient {
     constructor(serviceBrokerServerUrl: string) {
         this.serviceBrokerServerUrl = serviceBrokerServerUrl;
@@ -71,8 +73,9 @@ export class ServiceBrokerClient {
             sbResource,
             (err, req, res, obj) => {
                 if (err) {
-                    log.error("ServiceBrokerClient: error connecting to",
-                              "ServiceBrokerServer: ", err);
+                    log.error(sbcCouldNotConnectToSbs(this.serviceBrokerServerUrl, err));
+                    // TODO: ERROR OUT.
+                    return;
                 }
 
                 log.info("ServiceBrokerClient: Successfully connected to ",

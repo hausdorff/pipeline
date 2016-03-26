@@ -77,16 +77,16 @@
 // });
 
 
-// Set up service broker.
-import * as sb from "../src/core/ServiceBroker"
+// // Set up service broker.
+// import * as sb from "../src/core/ServiceBroker"
 
-const ServiceBrokerPort: string = "8080";
-const ServiceBrokerUrl: string = "http://127.0.0.1" + ":" + ServiceBrokerPort;
-const configuration = sb.ServiceConfigutor.fromFile(
-    "./test/config/simpleOneboxConfig.json",
-    "utf8");
-const sbs = new sb.ServiceBrokerServer(configuration);
-sbs.listen(ServiceBrokerPort);
+const ServiceBrokerPort: string = "8090";
+// const ServiceBrokerUrl: string = "http://127.0.0.1" + ":" + ServiceBrokerPort;
+// const configuration = sb.ServiceConfigutor.fromFile(
+//     "./test/config/simpleOneboxConfig.json",
+//     "utf8");
+// const sbs = new sb.ServiceBrokerServer(configuration);
+// sbs.listen(ServiceBrokerPort);
 
 
 import * as restify from 'restify';
@@ -121,27 +121,40 @@ frontdoor.get('/api/test', (req,res,next) => {
 });
 frontdoor.listen(FrontDoorPort);
 
-
-import chai = require('chai');
-var expect = chai.expect;
-
-describe('Test experimental Continuum API', () => {
-    describe('Verify `ProcessingStage` processed some data', () => {
-        it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
-            const client = restify.createJsonClient({
-                url: FrontDoorUrl,
-                version: '*'
-            });
-
-            client.get("/api/test", (err, req, res) => {
-                    // TODO: verify the thingWasProcessed member actually is true.
-            });
-
-            setTimeout(() => {
-                done();
-            },
-            250);
-        });
-    });
+const client = restify.createJsonClient({
+    url: FrontDoorUrl,
+    version: '*'
 });
+
+setTimeout(() => {
+    client.get("/api/test", (err, req, res) => {
+            // TODO: verify the thingWasProcessed member actually is true.
+    });
+},
+250);
+
+
+
+// import chai = require('chai');
+// var expect = chai.expect;
+
+// describe('Test experimental Continuum API', () => {
+//     describe('Verify `ProcessingStage` processed some data', () => {
+//         it('`ProcessingStage.thingWasProcessed` should be `true`', (done) => {
+//             const client = restify.createJsonClient({
+//                 url: FrontDoorUrl,
+//                 version: '*'
+//             });
+
+//             client.get("/api/test", (err, req, res) => {
+//                     // TODO: verify the thingWasProcessed member actually is true.
+//             });
+
+//             setTimeout(() => {
+//                 done();
+//             },
+//             250);
+//         });
+//     });
+// });
 

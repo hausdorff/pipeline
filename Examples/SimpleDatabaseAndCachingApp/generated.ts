@@ -32,6 +32,7 @@ export interface ProcessingStageInterface extends stage.Stage {
 }
 
 export class Continuum extends continua.ContinuumBase {
+    // TODO: Make these setters so that they talk to the ServiceBroker.
     public cacheStage: CacheStageInterface = null;
     public dbStage: DbStageInterface = null;
     public processingStage: ProcessingStageInterface = null;
@@ -59,7 +60,7 @@ export class Continuum extends continua.ContinuumBase {
 }
 
 
-const ServiceBrokerPort: string = "8080";
+const ServiceBrokerPort: string = "8090";
 const ServiceBrokerUrl = process.env.serviceBrokerUrl || "http://127.0.0.1" + ":" + ServiceBrokerPort;
 
 export const continuum = new Continuum(ServiceBrokerUrl);

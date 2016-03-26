@@ -4,7 +4,7 @@ var log = require('winston');
 log.level = 'error';
 
 
-const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8080";
+const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8090";
 const resourcePath = process.env.resourcePath = "/continuum";
 const stageId = "ProcessingStage";
 const port = process.env.port || 8083;
@@ -18,7 +18,7 @@ export class ProcessingStage extends continua.Stage implements continua.Processi
 
         // Allow tests to verify function ran.
         this.thingWasProcessed = true;
-        log.error(this.thingWasProcessed);
+        log.error("thingWasProcessed:", this.thingWasProcessed);
     }
 
     public processData = processData;
