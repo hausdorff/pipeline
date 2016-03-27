@@ -20,7 +20,7 @@ export type Machine = { url: string, client: restify.Client };
 // Simple broker server.
 // ----------------------------------------------------------------------------
 export class ServiceBrokerServer {
-    constructor(configuration: ServiceConfigutor) {
+    constructor(configuration: ServiceConfigurator) {
         this.configuration = configuration;
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
@@ -78,7 +78,7 @@ export class ServiceBrokerServer {
                  " for resource " + stagesPath);
     }
 
-    private configuration: ServiceConfigutor;
+    private configuration: ServiceConfigurator;
     private port: string
     private server: restify.Server;
 }
@@ -138,20 +138,20 @@ export class ServiceBrokerClient {
                          "ServiceBrokerServer at: ",
                          this.serviceBrokerServerUrl);
 
-                this.stages = ServiceConfigutor.fromJson(obj.toString());
+                this.stages = ServiceConfigurator.fromJson(obj.toString());
             });
     }
 
     private serviceBrokerServerUrl: string;
     private client: restify.Client;
-    private stages: ServiceConfigutor;
+    private stages: ServiceConfigurator;
 }
 
 
 // ----------------------------------------------------------------------------
 // Stage configuration.
 // ----------------------------------------------------------------------------
-export class ServiceConfigutor {
+export class ServiceConfigurator {
     constructor() { }
 
     public stageIds(): string[] {
@@ -218,9 +218,9 @@ export class ServiceConfigutor {
         return JSON.stringify(configurationJson, null, 2);
     }
 
-    public static fromJson(config: string): ServiceConfigutor {
+    public static fromJson(config: string): ServiceConfigurator {
         let stages = JSON.parse(config);
-        let sbc = new ServiceConfigutor();
+        let sbc = new ServiceConfigurator();
 
         for (let stageId in stages) {
             let stage = stages[stageId];
@@ -242,9 +242,9 @@ export class ServiceConfigutor {
         return sbc;
     }
 
-    public static fromFile(filename: string, encoding: string): ServiceConfigutor {
+    public static fromFile(filename: string, encoding: string): ServiceConfigurator {
         let contents = fs.readFileSync(filename, "utf8");
-        return ServiceConfigutor.fromJson(contents);
+        return ServiceConfigurator.fromJson(contents);
     }
 
     private stages: { [id: string]: [Machine[], string] } = { };

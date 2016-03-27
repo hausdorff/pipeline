@@ -6,7 +6,7 @@ var assert = chai.assert;
 describe('Test delete in ServiceConfigurator', () => {
     describe('Verify add one delete one', () => {
         it('Deleting one after adding one should result in no elements', (done) => {
-            const sc = new broker.ServiceConfigutor(); // TODO: fix name mispelling.
+            const sc = new broker.ServiceConfigurator();
             expect(sc.stageIds().length).to.equal(0);
 
             const testUrl1 = "http://fake.com";
