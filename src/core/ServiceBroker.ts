@@ -1,5 +1,6 @@
 import fs = require("fs");
 import restify = require("restify");
+import * as http from "http";
 
 let log = require('winston');
 log.level = 'info';
@@ -33,23 +34,25 @@ export class ServiceBrokerServer {
         this.server.post(
             connectPath,
             (req, res, next) => {
+                const clientAddress = req.connection.remoteAddress;
+                const clientPort = req.params.port;
+                const clientRoute = req.params.route;
+                const clientStage = req.params.stage;
+                const clientUrl = `http://[${clientAddress}]:${clientPort}/heartbeat`;
 
                 const machine =
                 {
-                    url: req.connection.remoteAddress,
-                    client: restify.createJsonClient({
-                        url: req.connection.remoteAddress,
-                        version: "*"
-                    })
+                    url: clientUrl,
+                    client: null
                 };
-                if (this.configuration.has(req.params.stage)) {
-                    const [machines, route] = this.configuration.get(req.params.stage);
+                if (this.configuration.has(clientStage)) {
+                    const [machines, route] = this.configuration.get(clientStage);
 
                     // TODO: string compare WTF is even going on.
-                    if (req.params.route === route) {
+                    if (clientRoute === route) {
                         // TODO: known bug: we may add duplicate IPs.
                         machines.push(machine);
-                        this.configuration.addOrReplace(req.params.stage, [machines, route]);
+                        this.configuration.addOrReplace(clientStage, [machines, route]);
                     } else {
                         log.error("ServiceBrokerServer: attempted to add existing stage where route doesn't match");
                         res.send(500);
@@ -57,8 +60,8 @@ export class ServiceBrokerServer {
                     }
                 } else {
                     this.configuration.addOrReplace(
-                        req.params.stage,
-                        [[machine], req.params.route]);
+                        clientStage,
+                        [[machine], clientRoute]);
                 }
 
                 res.send(200);
@@ -109,6 +112,7 @@ export class ServiceBrokerClient {
     private configure() {
         this.client.post(
             connectPath,
+            // TODO: Fill this in with real stuff.
             {
                 route: "",
                 port: 1,
@@ -150,8 +154,37 @@ export class ServiceBrokerClient {
 export class ServiceConfigutor {
     constructor() { }
 
+    public stageIds(): string[] {
+        return Object.keys(this.stages);
+    }
+
     public get(id: string): [Machine[], string] {
         return this.stages[id];
+    }
+
+    public delete(id: string, url: string) {
+        if (!this.has(id)) {
+            return;
+        }
+
+        let i = 0;
+        let found = false;
+        for (const machine of this.stages[id][0]) {
+            // TODO: string compare makes sense?
+            if (machine.url === url) {
+                found = true;
+                break;
+            }
+            i++;
+        }
+
+        if (found) {
+            this.stages[id][0].splice(i, 1);
+        }
+
+        if (this.stages[id][0].length == 0) {
+            delete this.stages[id];
+        }
     }
 
     public addOrReplace(id: string, stage: [Machine[], string]): void {
@@ -196,6 +229,7 @@ export class ServiceConfigutor {
             for (let machineUrl of stage["machines"]) {
                 var machine: Machine = {
                     url: machineUrl,
+                    // TODO: We only need to do this for the SBC, not the SBS, so revisit pulling this.
                     client: restify.createJsonClient({ url: machineUrl })
                 };
 
