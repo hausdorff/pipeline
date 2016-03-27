@@ -8,8 +8,7 @@ log.level = 'info';
 
 const stagesPath: string = "/broker/stages";
 const connectPath: string = "/broker/connect";
-
-
+export const heartbeatPath: string = "/stage/heartbeat";
 
 export type Continuation<T> = (continuum : any, stage: T, params: any) => void;
 export type Selector = (machines: Machine[]) => Machine
@@ -19,6 +18,11 @@ export type Machine = { url: string, client: restify.Client };
 // ----------------------------------------------------------------------------
 // Simple broker server.
 // ----------------------------------------------------------------------------
+const sbsHeartbeatResponseRecieved = (clientStage, heartbeatUrl) => `ServiceBrokerServer: hearbeat response recieved from stage '${clientStage}' at '${heartbeatUrl}'`;
+const sbsHeartbeatBadStatusCode = (statusCode, clientStage, heartbeatUrl) => `ServiceBrokerServer: heartbeat returned error code '${statusCode}' for stage '${clientStage}' at '${heartbeatUrl}'`;
+const sbsHearbeatFailed = (clientStage, heartbeatUrl, err) => `ServiceBrokerServer: heartbeat failed for '${clientStage}' at '${heartbeatUrl}', with error: ${err}`;
+const sbsHearbeatTimeout = (clientStage, heartbeatUrl) => `ServiceBrokerServer: heartbeat timeout for stage '${clientStage}' at '${heartbeatUrl}`;
+
 export class ServiceBrokerServer {
     constructor(configuration: ServiceConfigurator) {
         this.configuration = configuration;
@@ -38,7 +42,12 @@ export class ServiceBrokerServer {
                 const clientPort = req.params.port;
                 const clientRoute = req.params.route;
                 const clientStage = req.params.stage;
-                const clientUrl = `http://[${clientAddress}]:${clientPort}/heartbeat`;
+
+                // NOTE: There is a '/' at the beginning of `clientRoute`, so
+                // it is not necessary to put a '/' between `clientPort` and
+                // `clientRoute`.
+                const clientUrl = `http://[${clientAddress}]:${clientPort}${clientRoute}`;
+                const heartbeatUrl = `http://[${clientAddress}]:${clientPort}${heartbeatPath}`;
 
                 const machine =
                 {
@@ -64,10 +73,40 @@ export class ServiceBrokerServer {
                         [[machine], clientRoute]);
                 }
 
+                // TODO: make this heartbeat less ad hoc (possibly using ZK
+                // watches).
+                // This sets a timer that causes a heartbeat to go out every 
+                // 5000ms. If it times out (1000ms), it will delete the client
+                // and then delete itself.
+                const intervalId = setInterval(() => {
+                    const request = http.get(heartbeatUrl, (res) => {
+                        if (res.statusCode === 200) {
+                            log.info(sbsHeartbeatResponseRecieved(clientStage, heartbeatUrl));
+                        } else {
+                            log.error(sbsHeartbeatBadStatusCode(res.statusCode, clientStage, clientUrl));
+                            this.configuration.delete(clientStage, clientUrl);
+                            clearInterval(intervalId);
+                        }
+
+                        res.resume();
+                    });
+
+                    request.on("error", (err) => {
+                        log.error(sbsHearbeatFailed(clientStage, heartbeatUrl, err));
+                        this.configuration.delete(clientStage, clientUrl);
+                        clearInterval(intervalId);
+                    });
+
+                    request.setTimeout(1000, () => {
+                        log.error(sbsHearbeatTimeout(clientStage, heartbeatUrl));
+                        this.configuration.delete(clientStage, clientUrl);
+                        clearInterval(intervalId);
+                    });
+                }, 5000);
+
                 res.send(200);
                 return next();
-            }
-        )
+            });
     }
 
     public listen(...args: any[]) {
@@ -90,11 +129,11 @@ export class ServiceBrokerServer {
 // Talks to the `ServiceBrokerServer`, both to discover the types which
 // machines which `Stage`s run on, and what types they export.
 // ----------------------------------------------------------------------------
-
 const sbcCouldNotConnectToSbs = (url, err) => `ServiceBrokerClient: error connecting to ServiceBrokerServer at url '${url}': ${err}`;
 
 export class ServiceBrokerClient {
-    constructor(serviceBrokerServerUrl: string) {
+    constructor(serviceBrokerServerUrl: string, private stageName: string,
+                private route: string) {
         this.serviceBrokerServerUrl = serviceBrokerServerUrl;
         this.client = restify.createJsonClient({
             url: serviceBrokerServerUrl,
@@ -109,14 +148,15 @@ export class ServiceBrokerClient {
         return this.stages.get(id);
     }
 
-    private configure() {
+    public connect(port: number) {
+        this.port = port;
+
         this.client.post(
             connectPath,
-            // TODO: Fill this in with real stuff.
             {
-                route: "",
-                port: 1,
-                stage: ""
+                route: this.route,
+                port: this.port,
+                stage: this.stageName
             },
             (err, req, res, obj) => {
                 if (err) {
@@ -124,7 +164,10 @@ export class ServiceBrokerClient {
                     return;
                 }
             });
+    }
 
+    private configure() {
+        // TODO: poll on changes.
         this.client.get(
             stagesPath,
             (err, req, res, obj) => {
@@ -145,6 +188,7 @@ export class ServiceBrokerClient {
     private serviceBrokerServerUrl: string;
     private client: restify.Client;
     private stages: ServiceConfigurator;
+    private port: number;
 }
 
 

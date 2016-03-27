@@ -7,6 +7,7 @@ var log = require('winston');
 log.level = 'error';
 
 
+
 // ----------------------------------------------------------------------------
 // Stage base class.
 //
@@ -19,10 +20,17 @@ log.level = 'error';
 export abstract class Stage {
     constructor(private continuum: cntm.ContinuumBase,
                 private route: string, public stageId: string) {
-        this.sbc = new sb.ServiceBrokerClient(continuum.serviceBrokerUrl); // not needed
+        this.sbc = new sb.ServiceBrokerClient(continuum.serviceBrokerUrl,
+                                              stageId, route);
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
 
+        this.server.get(
+            sb.heartbeatPath,
+            (req, res, next) => {
+                res.send(200);
+                return next();
+            });
 
         this.server.post(
             route,
@@ -46,6 +54,7 @@ export abstract class Stage {
     public listen(...args: any[]) {
         this.port = args[0];
         this.server.listen.apply(this.server, args);
+        this.sbc.connect(this.port);
 
         log.info("Stage listening on port " + this.port + " for resource " +
             this.route);
@@ -71,7 +80,7 @@ export abstract class Stage {
         }
     }
 
-    private port: string
+    private port: number;
     private server: restify.Server;
     public sbc: sb.ServiceBrokerClient;  // public for now.
 }
