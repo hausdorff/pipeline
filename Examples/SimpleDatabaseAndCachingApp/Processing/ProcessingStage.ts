@@ -1,7 +1,7 @@
 import * as continua from "../generated";
 
 var log = require('winston');
-log.level = 'error';
+log.level = 'info';
 
 
 const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8090";

@@ -22,6 +22,7 @@ const sbsHeartbeatResponseRecieved = (clientStage, heartbeatUrl) => `ServiceBrok
 const sbsHeartbeatBadStatusCode = (statusCode, clientStage, heartbeatUrl) => `ServiceBrokerServer: heartbeat returned error code '${statusCode}' for stage '${clientStage}' at '${heartbeatUrl}'`;
 const sbsHearbeatFailed = (clientStage, heartbeatUrl, err) => `ServiceBrokerServer: heartbeat failed for '${clientStage}' at '${heartbeatUrl}', with error: ${err}`;
 const sbsHearbeatTimeout = (clientStage, heartbeatUrl) => `ServiceBrokerServer: heartbeat timeout for stage '${clientStage}' at '${heartbeatUrl}`;
+const sbsStagesRequest = (address, port) => `ServiceBrokerServer: recieved request for stages from '${address}:${port}'`;
 
 export class ServiceBrokerServer {
     constructor(configuration: ServiceConfigurator) {
@@ -31,6 +32,7 @@ export class ServiceBrokerServer {
         this.server.get(
             stagesPath,
             (req, res, next) => {
+                log.info(sbsStagesRequest(req.connection.remoteAddress, req.connection.remotePort));
                 res.send(this.configuration.toJson());
                 return next();
             });
@@ -161,13 +163,23 @@ export class ServiceBrokerClient {
             (err, req, res, obj) => {
                 if (err) {
                     log.error("ServiceBrokerClient: couldn't register with ServiceBrokerServer", err);
+                    // TODO: Error out?
                     return;
                 }
             });
     }
 
     private configure() {
+        this.configureFromServer();
+
         // TODO: poll on changes.
+        const intervalId = setInterval(() => {
+            this.configureFromServer();
+        },
+        5000);
+    }
+
+    private configureFromServer() {
         this.client.get(
             stagesPath,
             (err, req, res, obj) => {
@@ -178,8 +190,8 @@ export class ServiceBrokerClient {
                 }
 
                 log.info("ServiceBrokerClient: Successfully connected to ",
-                         "ServiceBrokerServer at: ",
-                         this.serviceBrokerServerUrl);
+                        "ServiceBrokerServer at: ",
+                        this.serviceBrokerServerUrl);
 
                 this.stages = ServiceConfigurator.fromJson(obj.toString());
             });
