@@ -25,9 +25,7 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 // Continuum base class.
 // ----------------------------------------------------------------------------
 export abstract class ContinuumBase {
-    constructor(public serviceBrokerUrl) {
-        this.sbc = new sb.ServiceBrokerClient(serviceBrokerUrl);
-    }
+    constructor(public serviceBrokerUrl) { }
 
     protected forwardImplementation<T extends stage.Stage, U extends ContinuumBase>(toStage: T, params: any,
         c: (continuum: U, stage: T, params: any) => void) { // Hack for now.  The continuum should be typed for the stage
@@ -70,6 +68,4 @@ export abstract class ContinuumBase {
         args.unshift({});
         return objectAssign.apply(null, args);
     }
-
-    protected sbc: sb.ServiceBrokerClient;
 }

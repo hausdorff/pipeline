@@ -5,7 +5,9 @@ let log = require('winston');
 log.level = 'info';
 
 
-let sbResource: string = "/broker/stages";
+const stagesPath: string = "/broker/stages";
+const connectPath: string = "/broker/connect";
+
 
 
 export type Continuation<T> = (continuum : any, stage: T, params: any) => void;
@@ -22,11 +24,47 @@ export class ServiceBrokerServer {
         this.server = restify.createServer({});
         this.server.use(restify.bodyParser({ mapParams: true }));
         this.server.get(
-            sbResource,
+            stagesPath,
             (req, res, next) => {
                 res.send(this.configuration.toJson());
                 return next();
             });
+
+        this.server.post(
+            connectPath,
+            (req, res, next) => {
+
+                const machine =
+                {
+                    url: req.connection.remoteAddress,
+                    client: restify.createJsonClient({
+                        url: req.connection.remoteAddress,
+                        version: "*"
+                    })
+                };
+                if (this.configuration.has(req.params.stage)) {
+                    const [machines, route] = this.configuration.get(req.params.stage);
+
+                    // TODO: string compare WTF is even going on.
+                    if (req.params.route === route) {
+                        // TODO: known bug: we may add duplicate IPs.
+                        machines.push(machine);
+                        this.configuration.addOrReplace(req.params.stage, [machines, route]);
+                    } else {
+                        log.error("ServiceBrokerServer: attempted to add existing stage where route doesn't match");
+                        res.send(500);
+                        return next();
+                    }
+                } else {
+                    this.configuration.addOrReplace(
+                        req.params.stage,
+                        [[machine], req.params.route]);
+                }
+
+                res.send(200);
+                return next();
+            }
+        )
     }
 
     public listen(...args: any[]) {
@@ -34,7 +72,7 @@ export class ServiceBrokerServer {
         this.server.listen.apply(this.server, args);
 
         log.info("ServiceBrokerServer: listening on port " + this.port +
-                 " for resource " + sbResource);
+                 " for resource " + stagesPath);
     }
 
     private configuration: ServiceConfigutor;
@@ -69,8 +107,22 @@ export class ServiceBrokerClient {
     }
 
     private configure() {
+        this.client.post(
+            connectPath,
+            {
+                route: "",
+                port: 1,
+                stage: ""
+            },
+            (err, req, res, obj) => {
+                if (err) {
+                    log.error("ServiceBrokerClient: couldn't register with ServiceBrokerServer", err);
+                    return;
+                }
+            });
+
         this.client.get(
-            sbResource,
+            stagesPath,
             (err, req, res, obj) => {
                 if (err) {
                     log.error(sbcCouldNotConnectToSbs(this.serviceBrokerServerUrl, err));
@@ -102,8 +154,12 @@ export class ServiceConfigutor {
         return this.stages[id];
     }
 
-    private set(id: string, stage: [Machine[], string]): void {
+    public addOrReplace(id: string, stage: [Machine[], string]): void {
         this.stages[id] = stage;
+    }
+
+    public has(id: string): boolean {
+        return id in this.stages;
     }
 
     public toJson(): string {
@@ -146,7 +202,7 @@ export class ServiceConfigutor {
                 machines.push(machine);
             }
 
-            sbc.set(stageId, [machines, stage["route"]]);
+            sbc.addOrReplace(stageId, [machines, stage["route"]]);
         }
 
         return sbc;
