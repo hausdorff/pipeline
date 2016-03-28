@@ -134,6 +134,14 @@ function provision(marathonUrl: string, brokerName: string) {
         });
 }
 
+function start(port: number) {
+    // NOTE: This temporarily depends on the entire project being built and the
+    // CLI having access to the `ServiceBroker.js` file, which might not be
+    // true in the future.
+    let sb = require("../ServiceBroker/main");
+    sb.startServiceBroker(port);
+}
+
 
 // ----------------------------------------------------------------------------
 // Set up CLI options.
@@ -159,6 +167,11 @@ program
     .command("provision <marathonUri> <brokerName>")
     .description("Provision a service broker <brokerName> using Marathon at <marathonUri>")
     .action(provision);
+
+program
+    .command("start <port>")
+    .description("Start a service broker listening on <port>")
+    .action(start);
 
 
 // ----------------------------------------------------------------------------
