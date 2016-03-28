@@ -52,3 +52,5 @@ export function findContinuaDirectory(currPath: string): string {
 // ----------------------------------------------------------------------------
 export const continuaMetadataDirectory = ".continua";
 export const brokersFileName = "brokers";
+
+export const serviceBrokerContainerPath = "./dist/src/ServiceBroker/main.js";

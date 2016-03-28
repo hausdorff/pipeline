@@ -1,3 +1,5 @@
+import * as restify from "restify";
+
 import fs = require("fs");
 import path = require("path");
 
@@ -11,6 +13,37 @@ import common = require("./common");
 const brokerError_couldNotFindContinuaDirectory = `Continua could not find a directory with the name '${common.continuaMetadataDirectory}' in current directory '${process.cwd()}' or any of its parent directories; if this is not a valid Continua project, try running 'continua init'`;
 const brokerError_couldNotAddDuplicateBroker = (brokerName) => `Continua could not add broker '${brokerName}' because it already exists in registry`;
 const brokerError_couldNotRemoveNonexistantBroker = (brokerName) => `Continua could not remove broker '${brokerName}' because it does not exist in registry`;
+
+
+// ----------------------------------------------------------------------------
+// Helper functions.
+// ----------------------------------------------------------------------------
+function marathonJson(brokerName: string, image: string, command: string,
+                      instances: number, port: number): Object {
+    const marathonJson =
+        {
+            "id": brokerName,
+            "cmd": command,
+            "cpus": 1.5,
+            "mem": 256.0,
+            "requirePorts": false,
+            "instances": instances,
+            "container": {
+            "type": "DOCKER",
+            "docker": {
+                "image": image,
+                "forcePullImage": true,
+                "network": "BRIDGE",
+                "portMappings": [
+                { "containerPort": port, "hostPort": 0, "servicePort": 0, "protocol": "tcp" },
+                ]
+                }
+            }
+        };
+
+    return marathonJson;
+}
+
 
 // ----------------------------------------------------------------------------
 // CLI application logic.
@@ -78,6 +111,29 @@ function list() {
     }
 }
 
+function provision(marathonUrl: string, brokerName: string) {
+    const command = `node ${common.serviceBrokerContainerPath}`;
+    const appId = "/continuum/" + brokerName;
+    const json = marathonJson(appId, "hausdorff/ctest", command, 1, 8090);
+
+    // Add broker to registry. This will error out if we already have a broker
+    // with that name in the registry.
+    add(brokerName, marathonUrl);
+
+    // Attempt to provision with Marathon.
+    const client = restify.createJsonClient({ url: marathonUrl });
+    client.post(
+        marathonUrl + "/v2/apps",
+        json,
+        (err, req, res) => {
+            if (err) {
+                // Clean up after ourselves.
+                console.log(err);
+                rm(brokerName);
+            }
+        });
+}
+
 
 // ----------------------------------------------------------------------------
 // Set up CLI options.
@@ -98,6 +154,11 @@ program
     .command("list")
     .description("List service brokers that are tracked in local registry")
     .action(list);
+
+program
+    .command("provision <marathonUri> <brokerName>")
+    .description("Provision a service broker <brokerName> using Marathon at <marathonUri>")
+    .action(provision);
 
 
 // ----------------------------------------------------------------------------
