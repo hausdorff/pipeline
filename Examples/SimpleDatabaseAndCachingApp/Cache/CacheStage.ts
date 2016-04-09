@@ -3,11 +3,16 @@ import * as continua from "../generated";
 var log = require('winston');
 log.level = 'info';
 
+
 const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8090";
 const resourcePath = process.env.resourcePath = "/continuum";
 const stageId = "CacheStage";
 const port = process.env.port || 8081;
 
+
+// ----------------------------------------------------------------------------
+// Simple broker server.
+// ----------------------------------------------------------------------------
 const logCacheHit = (k, v) => `CacheStage: Key '${k}' found; forwarding value '${v}' to processing node`;
 const logCacheMiss = (k) => `CacheStage: Did not find key '${k}' in cache; forwarding request to database node`;
 
@@ -42,11 +47,11 @@ export class CacheStage extends continua.Stage implements continua.CacheStageInt
     private store: { [k: string]: string; } = {};
 }
 
-// var continuum = new continua.Continuum(serviceBrokerUrl);
 
+// ----------------------------------------------------------------------------
+// Start stage.
+// ----------------------------------------------------------------------------
 export var cacheStage = new CacheStage(continua.continuum, resourcePath, stageId);
 cacheStage.listen(port);
-
-// continua.continuum.cacheStage = cacheStage;
 
 export var ready = true;

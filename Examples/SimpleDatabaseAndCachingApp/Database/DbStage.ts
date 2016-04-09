@@ -3,11 +3,16 @@ import * as continua from "../generated";
 var log = require('winston');
 log.level = 'info';
 
+
 const serviceBrokerUrl = process.env.serviceBrokerUrl || "http://localhost:8090";
 const resourcePath = process.env.resourcePath = "/continuum";
 const stageId = "DbStage";
 const port = process.env.port || 8082;
 
+
+// ----------------------------------------------------------------------------
+// Simple database stage.
+// ----------------------------------------------------------------------------
 const logDbGet = (k, v) => `DbStage: Retrieved value '${v}' for key '${k}'; forwarding to both \`CacheStage\` and \`ProcessingStage\``;
 
 
@@ -34,11 +39,11 @@ function cacheAndProcessData(continuum: continua.Continuum, dbs: continua.DbStag
                     (c, ps, p) => { ps.processData(c, ps, p); });
 };
 
-// var continuum = new continua.Continuum(serviceBrokerUrl);
 
+// ----------------------------------------------------------------------------
+// Start stage.
+// ----------------------------------------------------------------------------
 export var dbStage = new DbStage(continua.continuum, resourcePath, stageId);
 dbStage.listen(port);
-
-// continua.continuum.dbStage = dbStage;
 
 export var ready = true;

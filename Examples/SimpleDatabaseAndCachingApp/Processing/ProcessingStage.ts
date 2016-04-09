@@ -10,6 +10,9 @@ const stageId = "ProcessingStage";
 const port = process.env.port || 8083;
 
 
+// ----------------------------------------------------------------------------
+// Simple processing stage.
+// ----------------------------------------------------------------------------
 export class ProcessingStage extends continua.Stage implements continua.ProcessingStageInterface {
     public thingWasProcessed: boolean = false; // Used for tests.
 
@@ -29,11 +32,11 @@ function processData(c: continua.Continuum, pss: continua.ProcessingStageInterfa
     pss.doThing(params.value);
 };
 
-// var continuum = new continua.Continuum(serviceBrokerUrl);
 
+// ----------------------------------------------------------------------------
+// Start stage.
+// ----------------------------------------------------------------------------
 export var processingStage = new ProcessingStage(continua.continuum, resourcePath, stageId);
 processingStage.listen(port);
-
-// continua.continuum.processingStage = processingStage;
 
 export var ready = true;
