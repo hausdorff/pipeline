@@ -80,7 +80,7 @@
 // // Set up service broker.
 // import * as sb from "../src/core/ServiceBroker"
 
-const ServiceBrokerPort: string = "8090";
+// const ServiceBrokerPort: string = "8090";
 // const ServiceBrokerUrl: string = "http://127.0.0.1" + ":" + ServiceBrokerPort;
 // const configuration = sb.ServiceConfigutor.fromFile(
 //     "./test/config/simpleOneboxConfig.json",
@@ -128,10 +128,13 @@ const client = restify.createJsonClient({
 
 setTimeout(() => {
     client.get("/api/test", (err, req, res) => {
-            // TODO: verify the thingWasProcessed member actually is true.
+        if (err) {
+            console.log(err);
+        }
+        // TODO: verify the thingWasProcessed member actually is true.
     });
 },
-250);
+2000);
 
 
 

@@ -146,7 +146,6 @@ export class ServiceBrokerClient {
     }
 
     public resolve(id: string): [Machine[], string] {
-        const s = this.stages.get(id)
         return this.stages.get(id);
     }
 
@@ -176,7 +175,7 @@ export class ServiceBrokerClient {
         const intervalId = setInterval(() => {
             this.configureFromServer();
         },
-        5000);
+        1000);
     }
 
     private configureFromServer() {
