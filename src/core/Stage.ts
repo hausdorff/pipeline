@@ -9,6 +9,22 @@ log.level = 'error';
 
 
 // ----------------------------------------------------------------------------
+// Helper functions.
+// ----------------------------------------------------------------------------
+function objectAssign(output: Object, ...args: Object[]): Object {  // Provides ES6 object.assign functionality
+    for (let index = 0; index < args.length; index++) {
+        var source = args[index];
+        if (source !== undefined && source !== null) {
+            Object.keys(source).forEach((key) => {
+                output[key] = source[key];
+            });
+        }
+    }
+    return output;
+}
+
+
+// ----------------------------------------------------------------------------
 // Stage base class.
 //
 // Abstract base class all stages inherit from.
@@ -49,6 +65,47 @@ export abstract class Stage {
 
                 return next();
             });
+    }
+
+    public forward<T extends Stage, U extends cntm.ContinuumBase>(
+            stageId: string,
+            continuum: U,
+            parameters: any,
+            s: sb.Selector,
+            c: (continuum: U, stage: T, params: any) => void) {
+        let [machines, resource] = this.sbc.resolve(stageId);
+        let machine = s(machines);
+
+        let params = this.merge(
+            parameters,
+            !c
+                ? {}
+                : { code: c.toString() });
+
+        // POST response.
+        machine.client.post(
+            resource,
+            params,
+            (err, req, res, obj) => {
+                if (err) {
+                    log.error('Error sending to ', machine.url, resource, ':\n',
+                        err);
+                    throw 'Send error';
+                }
+                if (res.statusCode == 201) {
+                    log.info('Request complete for', resource);
+                    // very important - do nothing... the response will be sent
+                    // back via the pipeline. This is just acknowlegement that
+                    // the next stage got the request.
+                } else {
+                    log.info('not sure why we are here in send');
+                }
+            });
+    }
+
+    private merge(...args: Object[]): Object {
+        args.unshift({});
+        return objectAssign.apply(null, args);
     }
 
     public listen(...args: any[]) {

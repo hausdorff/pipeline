@@ -101,11 +101,11 @@ var continuum = continua.continuum;
 // Set up stages.
 import cache = require("../Examples/SimpleDatabaseAndCachingApp/Cache/CacheStage");
 import db = require("../Examples/SimpleDatabaseAndCachingApp/Database/DbStage");
-import processing = require("../Examples/SimpleDatabaseAndCachingApp/Processing/ProcessingStage");
+// import processing = require("../Examples/SimpleDatabaseAndCachingApp/Processing/ProcessingStage");
 
 continuum.cacheStage = cache.cacheStage;
-continuum.dbStage = db.dbStage;
-continuum.processingStage = processing.processingStage;
+// continuum.dbStage = db.dbStage;
+// continuum.processingStage = processing.processingStage;
 
 // Set up front door.
 const FrontDoorPort = 8000;
@@ -113,10 +113,15 @@ const FrontDoorUrl: string = "http://127.0.0.1" + ":" + FrontDoorPort;
 var frontdoor = restify.createServer();
 frontdoor.get('/api/test', (req,res,next) => {
     var keyToLookup = { key: "your_favorite_key" }
-    continuum.forward(
-        continuum.cacheStage,
+    cache.cacheStage.forward(
+        "DbStage",
+        continuum,
         keyToLookup,
-        (continuum, stage, state) => stage.getDataAndProcess(continuum, stage, state));
+        ss => ss[0],
+        // (continuum, stage, state) => stage.getDataAndProcess(continuum, stage, state));
+        (continuum, db, state) => {
+            console.log("cow");
+        });
     res.end();
 });
 frontdoor.listen(FrontDoorPort);
