@@ -13,7 +13,7 @@ const port = process.env.port || 8083;
 // ----------------------------------------------------------------------------
 // Simple processing stage.
 // ----------------------------------------------------------------------------
-export class ProcessingStage extends continua.Stage implements continua.ProcessingStageInterface {
+export class ProcessingStage extends continua.Stage /*implements continua.ProcessingStageInterface*/ {
     public thingWasProcessed: boolean = false; // Used for tests.
 
     public doThing(v: string) {
@@ -24,19 +24,24 @@ export class ProcessingStage extends continua.Stage implements continua.Processi
         log.error("thingWasProcessed:", this.thingWasProcessed);
     }
 
-    public processData = processData;
+    // public processData = processData;
 }
 
-function processData(c: continua.Continuum, pss: continua.ProcessingStageInterface, params: any) {
-    c.log.error("ProcessingStage: processing data '" + params.value + "'");
-    pss.doThing(params.value);
-};
+// function processData(c: continua.Continuum, pss: continua.ProcessingStageInterface, params: any) {
+//     c.log.error("ProcessingStage: processing data '" + params.value + "'");
+//     pss.doThing(params.value);
+// };
 
 
 // ----------------------------------------------------------------------------
 // Start stage.
 // ----------------------------------------------------------------------------
-export var processingStage = new ProcessingStage(continua.continuum, resourcePath, stageId);
-processingStage.listen(port);
+export var processingStage;
 
-export var ready = true;
+if (require.main === module) {
+    processingStage = new ProcessingStage(continua.fabric, serviceBrokerUrl,
+                                          resourcePath, stageId);
+    processingStage.listen(port);
+}
+
+// export var ready = true;

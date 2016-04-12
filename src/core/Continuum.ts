@@ -1,3 +1,5 @@
+import * as restify from "restify";
+
 import sb = require("./ServiceBroker");
 import stage = require("./Stage");
 
@@ -24,48 +26,63 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 // ----------------------------------------------------------------------------
 // Continuum base class.
 // ----------------------------------------------------------------------------
-export abstract class ContinuumBase {
-    constructor(public serviceBrokerUrl) { }
+export abstract class FabricBase {
+    log: any;
+}
 
-    protected forwardImplementation<T extends stage.Stage, U extends ContinuumBase>(toStage: T, params: any,
-        c: (continuum: U, stage: T, params: any) => void) { // Hack for now.  The continuum should be typed for the stage
-        return this.forwardWithSelectorImplementation<T, U>(toStage, params, ss => ss[0], c);
+
+// ----------------------------------------------------------------------------
+// Continuum base class.
+// ----------------------------------------------------------------------------
+export abstract class ContinuumBase extends stage.Forwarder {
+    constructor(serviceBrokerUrl: string,
+                route: string, stageId: string) {
+        super(serviceBrokerUrl, route, stageId);
     }
 
-    protected forwardWithSelectorImplementation<T extends stage.Stage, U extends ContinuumBase>(toStage: T, parameters: any, s: sb.Selector, 
-                           c: (continuum: U, stage: T, params: any) => void) {
-        let [machines, resource] = toStage.sbc.resolve(toStage.stageId);
-        let machine = s(machines);
-
-        let params = this.merge(
-            parameters,
-            !c
-                ? {}
-                : { code: c.toString() });
-
-        // POST response.
-        machine.client.post(
-            resource,
-            params,
-            (err, req, res, obj) => {
-                if (err) {
-                    log.error('Error sending to ', machine.url, resource, ':\n',
-                        err);
-                    throw 'Send error';
-                }
-                if (res.statusCode == 201) {
-                    log.info('Request complete for', resource);
-                    // very important - do nothing... the response will be sent
-                    // back via the pipeline. This is just acknowlegement that
-                    // the next stage got the request.  
-                } else {
-                    log.info('not sure why we are here in send');
-                }
-            });
+    public use(handler, ...handlers): restify.Server {
+        return this.server.use(handler, handlers);
     }
 
-    private merge(...args: Object[]): Object {
-        args.unshift({});
-        return objectAssign.apply(null, args);
+    public post(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.post(route, routeCallBack, routeCallBacks);
     }
+
+    public patch(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.patch(route, routeCallBack, routeCallBacks);
+    }
+
+    public put(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.put(route, routeCallBack, routeCallBacks);
+    }
+
+    public del(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.del(route, routeCallBack, routeCallBacks);
+    }
+
+    public get(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.get(route, routeCallBack, routeCallBacks);
+    }
+
+    public head(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.head(route, routeCallBack, routeCallBacks);
+    }
+
+    public opts(route, routeCallBack, ...routeCallBacks): restify.Route {
+        return this.server.opts(route, routeCallBack, routeCallBacks);
+    }
+
+    public listen(...args: any[]) {
+        this.port = args[0];
+        this.server.listen.apply(this.server, args);
+        this.sbc.connect(this.port);
+
+        console.log("Stage listening on port " + this.port + " for resource " +
+            this.route);
+
+        // TODO: Add John's hack for getting the current IP here.
+    }
+
+    private port: number;
+    private server = restify.createServer();
 }

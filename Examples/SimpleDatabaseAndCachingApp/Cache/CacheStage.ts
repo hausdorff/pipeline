@@ -17,7 +17,7 @@ const logCacheHit = (k, v) => `CacheStage: Key '${k}' found; forwarding value '$
 const logCacheMiss = (k) => `CacheStage: Did not find key '${k}' in cache; forwarding request to database node`;
 
 
-export class CacheStage extends continua.Stage implements continua.CacheStageInterface {
+export class CacheStage extends continua.Stage /*implements continua.CacheStageInterface*/ {
     public has(k: string): boolean {
         log.info("CacheStage.has(" + k + ")");
         return !(typeof this.store[k] === "undefined");
@@ -30,19 +30,19 @@ export class CacheStage extends continua.Stage implements continua.CacheStageInt
         return true;
     }
 
-    public getDataAndProcess(continuum: continua.Continuum, cs: continua.CacheStageInterface, params: any): void {
-        if (cs.has(params.key)) {
-            let dataToProcess = { value: cs.get(params.key) };
+    // public getDataAndProcess(continuum: continua.Continuum, cs: continua.CacheStageInterface, params: any): void {
+    //     if (cs.has(params.key)) {
+    //         let dataToProcess = { value: cs.get(params.key) };
 
-            continuum.log.info(logCacheHit(params.key, dataToProcess.value));
-            continuum.forward(continuum.processingStage, dataToProcess,
-                (c, ps, state) => ps.processData(c, ps, state));
-        } else {
-            continuum.log.info(logCacheMiss(params.key));
-            continuum.forward(continuum.dbStage, params,
-                (c, dbs, state) => dbs.cacheAndProcessData(c, dbs, state));
-        }
-    };
+    //         continuum.log.info(logCacheHit(params.key, dataToProcess.value));
+    //         continuum.forward(continuum.processingStage, dataToProcess,
+    //             (c, ps, state) => ps.processData(c, ps, state));
+    //     } else {
+    //         continuum.log.info(logCacheMiss(params.key));
+    //         continuum.forward(continuum.dbStage, params,
+    //             (c, dbs, state) => dbs.cacheAndProcessData(c, dbs, state));
+    //     }
+    // };
 
     private store: { [k: string]: string; } = {};
 }
@@ -51,7 +51,12 @@ export class CacheStage extends continua.Stage implements continua.CacheStageInt
 // ----------------------------------------------------------------------------
 // Start stage.
 // ----------------------------------------------------------------------------
-export var cacheStage = new CacheStage(continua.continuum, resourcePath, stageId);
-cacheStage.listen(port);
+export var cacheStage;
 
-export var ready = true;
+if (require.main === module) {
+    cacheStage = new CacheStage(continua.fabric, serviceBrokerUrl,
+                                resourcePath, stageId);
+    cacheStage.listen(port);
+}
+
+// export var ready = true;

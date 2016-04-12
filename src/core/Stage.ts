@@ -33,46 +33,25 @@ function objectAssign(output: Object, ...args: Object[]): Object {  // Provides 
 // class, so that the application developer, so they can services and take
 // advantage of static analysis tooling like dot completion.
 // ----------------------------------------------------------------------------
-export abstract class Stage {
-    constructor(private continuum: cntm.ContinuumBase,
-                private route: string, public stageId: string) {
-        this.sbc = new sb.ServiceBrokerClient(continuum.serviceBrokerUrl,
+export abstract class Forwarder {
+    constructor(public serviceBrokerUrl: string,
+                protected route: string, public stageId: string) {
+        this.sbc = new sb.ServiceBrokerClient(serviceBrokerUrl,
                                               stageId, route);
-        this.server = restify.createServer({});
-        this.server.use(restify.bodyParser({ mapParams: true }));
-
-        this.server.get(
-            sb.heartbeatPath,
-            (req, res, next) => {
-                res.send(200);
-                return next();
-            });
-
-        this.server.post(
-            route,
-            (req, res, next) => {
-                log.info("stage post listener");
-                res.send(201);
-
-                let code = req.params.code;
-                let params = req.params;
-
-                delete params.code;
-
-                if (code) {
-                    this.handleCode(code, params);
-                }
-
-                return next();
-            });
     }
 
-    public forward<T extends Stage, U extends cntm.ContinuumBase>(
+    public forward<T extends Stage>(
             stageId: string,
-            continuum: U,
+            parameters: any,
+            c: (stage: T, params: any) => void) {
+        this.forwardSelector(stageId, parameters, ss => ss[0], c);
+    }
+
+    public forwardSelector<T extends Stage>(
+            stageId: string,
             parameters: any,
             s: sb.Selector,
-            c: (continuum: U, stage: T, params: any) => void) {
+            c: (stage: T, params: any) => void) {
         let [machines, resource] = this.sbc.resolve(stageId);
         let machine = s(machines);
 
@@ -108,6 +87,43 @@ export abstract class Stage {
         return objectAssign.apply(null, args);
     }
 
+    public sbc: sb.ServiceBrokerClient;  // public for now.
+}
+
+export abstract class Stage extends Forwarder {
+    constructor(private fabric: cntm.FabricBase, serviceBrokerUrl: string,
+                route: string, stageId: string) {
+        super(serviceBrokerUrl, route, stageId);
+
+        this.server = restify.createServer({});
+        this.server.use(restify.bodyParser({ mapParams: true }));
+
+        this.server.get(
+            sb.heartbeatPath,
+            (req, res, next) => {
+                res.send(200);
+                return next();
+            });
+
+        this.server.post(
+            route,
+            (req, res, next) => {
+                log.info("stage post listener");
+                res.send(201);
+
+                let code = req.params.code;
+                let params = req.params;
+
+                delete params.code;
+
+                if (code) {
+                    this.handleCode(code, params);
+                }
+
+                return next();
+            });
+    }
+
     public listen(...args: any[]) {
         this.port = args[0];
         this.server.listen.apply(this.server, args);
@@ -125,12 +141,12 @@ export abstract class Stage {
         try {
             // Wrap function in something with parameters that have known names,
             // so that we can call it easily.
-            let toEval = "(function (continuum, stage, params) { var f = " +
-                code.replace(/^ *"use strict";/, "") + "; f(continuum, stage, params); })";
+            let toEval = "(function (stage, params) { var f = " +
+                code.replace(/^ *"use strict";/, "") + "; f(stage, params); })";
 
             var f = eval(toEval);
 
-            f(this.continuum, this, params);
+            f(this, params);
         } catch (err) {
             log.error("Could not eval '", code, "': ", err);
             throw 'Code evaluation error';
@@ -139,5 +155,4 @@ export abstract class Stage {
 
     private port: number;
     private server: restify.Server;
-    public sbc: sb.ServiceBrokerClient;  // public for now.
 }

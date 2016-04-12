@@ -9,59 +9,29 @@ var log = require('winston');
 log.level = 'info';
 
 export * from "../../src/core/Stage";
+export * from "./Cache/CacheStage";
+export * from "./Database/DbStage";
+export * from "./Processing/ProcessingStage";
 
 export type CBContinuation<T> = (continuum: Continuum, stage: T, params: any) => void;
 
-export interface CacheStageInterface extends stage.Stage {
-    has: (k: string) => boolean;
-    get: (k: string) => string;
-    set: (k: string, v: string) => boolean;
-    getDataAndProcess: (continuum: Continuum, cs: CacheStageInterface, params: any) => void
-
-}
-
-export interface DbStageInterface extends stage.Stage {
-    getThing(k: string): string
-    cacheAndProcessData: (continuum: Continuum, dbs: DbStageInterface, params: any) => void;
-}
-
-export interface ProcessingStageInterface extends stage.Stage {
-    thingWasProcessed: boolean;
-    doThing: (v: string) => void;
-    processData: (continuum: Continuum, pss: ProcessingStageInterface, params: any) => void;
+export class Fabric extends continua.FabricBase {
+    public log = log;
 }
 
 export class Continuum extends continua.ContinuumBase {
-    // TODO: Make these setters so that they talk to the ServiceBroker.
-    public cacheStage: CacheStageInterface = null;
-    public dbStage: DbStageInterface = null;
-    public processingStage: ProcessingStageInterface = null;
-
-    public log = log;
-
-    public forward<T extends stage.Stage>(toStage: T, params: any,
-        c: CBContinuation<T>) {
-        return this.forwardWithSelectorImplementation<T, Continuum>(
-            toStage,
-            params,
-            ss => ss[0],
-            c);
-    }
-
-    public forwardWithSelector<T extends stage.Stage>(toStage: T, params: any,
-        s: sb.Selector,
-        c: CBContinuation<T>) {
-        return this.forwardWithSelectorImplementation<T, Continuum>(
-            toStage,
-            params,
-            s,
-            c);
-    }
+    public static CacheStageId = "CacheStage";
+    public static DbStageId = "DbStage";
+    public static ProcessingStageId = "ProcessingStage";
 }
 
 
 const ServiceBrokerPort: string = "8090";
 const ServiceBrokerUrl = process.env.serviceBrokerUrl || "http://127.0.0.1" + ":" + ServiceBrokerPort;
 
-export const continuum = new Continuum(ServiceBrokerUrl);
+export const fabric = new Fabric();
 
+export function connect(serviceBrokerUrl: string, route: string,
+                        stageId: string): Continuum {
+    return new Continuum(serviceBrokerUrl, route, stageId);
+}
