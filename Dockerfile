@@ -1,3 +1,12 @@
+# Maintainer's notes: This `Dockerfile` will create a whole-repository docker
+# image, which is crude, but we can use this to deploy our simple applications
+# on top of it. Typically it this looks something like:
+#   1. `docker build -t hausdorff/ctest .`
+#   2. `docker push hausdorff/ctest`
+#
+# And then:
+#   3 `docker run hausdorff/ctest node ./dist/Examples/SimpleDatabaseAndCachingApp/application.js`
+
 FROM ubuntu
 RUN apt-get update
 RUN apt-get install -y ca-certificates
