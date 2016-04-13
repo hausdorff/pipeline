@@ -1,3 +1,4 @@
+.continua/
 *.log
 dist/*
 typings/*
